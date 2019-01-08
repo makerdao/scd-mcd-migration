@@ -119,7 +119,7 @@ contract ScdMcdMigration {
         );
         ManagerLike(cdpManager).exit(address(daiJoin), cdp, address(this), debtAmt);
         daiJoin.join(urn, debtAmt);
-        
+
         // Re-balance Migration contract's CDP 
         PitLike(pit).frob(
             bytes32("SAI"),
