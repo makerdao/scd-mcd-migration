@@ -63,7 +63,7 @@ contract VatLike {
 }
 
 contract PitLike {
-    function frob(bytes32, bytes32, int, int) public;
+    function frob(bytes32, bytes32, bytes32, bytes32, int, int) public;
     function vat() public view returns (VatLike);
 }
 

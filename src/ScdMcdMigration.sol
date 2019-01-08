@@ -56,19 +56,21 @@ contract ScdMcdMigration {
     function swapSaiToDai(
         uint wad
     ) public {
+        bytes32 urn = bytes32(bytes20(address(this)));
         saiJoin.gem().transferFrom(msg.sender, address(this), wad);
-        saiJoin.join(bytes32(bytes20(address(this))), wad);
-        PitLike(pit).frob(bytes32(bytes20(address(this))), bytes32("SAI"), int(wad), int(wad));
-        daiJoin.exit(bytes32(bytes20(address(this))), msg.sender, wad);
+        saiJoin.join(urn, wad);
+        PitLike(pit).frob(bytes32("SAI"), urn, urn, urn, int(wad), int(wad));
+        daiJoin.exit(urn, msg.sender, wad);
     }
 
     function swapDaiToSai(
         uint wad
     ) public {
+        bytes32 urn = bytes32(bytes20(address(this)));
         daiJoin.dai().transferFrom(msg.sender, address(this), wad);
-        daiJoin.join(bytes32(bytes20(address(this))), wad);
-        PitLike(pit).frob(bytes32(bytes20(address(this))), bytes32("SAI"), -int(wad), -int(wad));
-        saiJoin.exit(bytes32(bytes20(address(this))), msg.sender, wad);
+        daiJoin.join(urn, wad);
+        PitLike(pit).frob(bytes32("SAI"), urn, urn, urn, -int(wad), -int(wad));
+        saiJoin.exit(urn, msg.sender, wad);
     }
 
     function migrate(
@@ -82,14 +84,18 @@ contract ScdMcdMigration {
         uint pethAmt = tub.ink(cup); // CDP locked collateral
         uint ethAmt = tub.bid(pethAmt); // CDP locked collateral equiv in ETH
 
+        bytes32 urn = bytes32(bytes20(address(this)));
+
         // Take SAI out
         PitLike(pit).frob(
-            bytes32(bytes20(address(this))),
             bytes32("SAI"),
+            urn,
+            urn,
+            urn,
             -int(debtAmt),
             0
         ); // This is only possible if Liquidation ratio is lower than 100%
-        saiJoin.exit(bytes32(bytes20(address(this))), address(this), debtAmt);
+        saiJoin.exit(urn, address(this), debtAmt);
 
         // Shut SAI CDP and get native ETH back
         tub.shut(cup);
@@ -112,12 +118,14 @@ contract ScdMcdMigration {
             int(mul(debtAmt, 10 ** 27) / rate + 1)
         );
         ManagerLike(cdpManager).exit(address(daiJoin), cdp, address(this), debtAmt);
-        daiJoin.join(bytes32(bytes20(address(this))), debtAmt);
+        daiJoin.join(urn, debtAmt);
         
         // Re-balance Migration contract's CDP 
         PitLike(pit).frob(
-            bytes32(bytes20(address(this))),
             bytes32("SAI"),
+            urn,
+            urn,
+            urn,
             0,
             -int(debtAmt)
         );
