@@ -150,9 +150,8 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         saiJoin = new GemJoin(address(vat), "SAI", address(sai));
         saiMove = new GemMove(address(vat), "SAI");
         dssDeploy.deployCollateral("SAI", address(saiJoin), address(saiMove), address(new MockSaiPip()));
-        (,,, saiPrice) = dssDeploy.ilks("SAI");
-        this.file(address(saiPrice), uint(10 ** 25)); // 1% liquidation ratio (needed for CDP Migration)
-        saiPrice.poke();
+        this.file(address(spotter), "SAI", "mat", uint(10 ** 25)); // 1% liquidation ratio (needed for CDP Migration)
+        spotter.poke("SAI");
         this.file(address(pit), bytes32("SAI"), bytes32("line"), uint(10000 ether));
 
         migration = new ScdMcdMigration(
