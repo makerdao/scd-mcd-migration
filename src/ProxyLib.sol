@@ -26,14 +26,14 @@ import "./ScdMcdMigration.sol";
 contract ProxyLib is DSMath {
     function migrate(address payable scdMcdMigration, bytes32 cup) public returns (uint cdp) {
         SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
-        // Transfer ownership of SCD CDP to the migration contract
+        // Transfers ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
-        // Get necessary MKR fee and move it to the migration contract
+        // Gets necessary MKR fee and move it to the migration contract
         (bytes32 val, bool ok) = tub.pep().peek();
         if (ok && uint(val) != 0) {
             tub.gov().transferFrom(msg.sender, address(scdMcdMigration), wdiv(tub.rap(cup), uint(val)));
         }
-        // Execute migrate function
+        // Executes migrate function
         cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
     }
 }
