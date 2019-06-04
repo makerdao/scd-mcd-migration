@@ -41,6 +41,7 @@ contract SaiTubLike {
 }
 
 contract JoinLike {
+    function ilk() public returns (bytes32);
     function gem() public returns (GemLike);
     function dai() public returns (GemLike);
     function join(address, uint) public;
@@ -50,6 +51,7 @@ contract VatLike {
     function ilks(bytes32) public view returns (uint, uint, uint, uint, uint);
     function hope(address) public;
     function frob(bytes32, address, address, address, int, int) public;
+    function move(address, address, uint) public;
 }
 
 contract ManagerLike {
