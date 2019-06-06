@@ -10,7 +10,7 @@ import {Spotter} from "dss-deploy/poke.sol";
 import {DSProxy, DSProxyFactory} from "ds-proxy/proxy.sol";
 import {WETH9_} from "ds-weth/weth9.sol";
 
-import "./ScdMcdMigration.sol";
+import "./MCDMigrator.sol";
 import "./ProxyLib.sol";
 
 contract MockSaiPip {
@@ -98,13 +98,13 @@ contract MockSaiTub is DSMath {
     }
 }
 
-contract ScdMcdMigrationTest is DssDeployTestBase {
+contract MCDMigratorTest is DssDeployTestBase {
     DSToken             sai;
     DSToken             skr;
     WETH9_              gem;
     DSToken             gov;
     MockSaiTub          tub;
-    ScdMcdMigration     migration;
+    MCDMigrator         migrator;
     DssCdpManager       manager;
     GemJoin             saiJoin;
     Spotter             saiPrice;
@@ -138,7 +138,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         this.file(address(vat), bytes32("SAI"), bytes32("spot"), uint(10 ** 27));
         this.file(address(vat), bytes32("SAI"), bytes32("line"), 10000 * 10 ** 45);
 
-        migration = new ScdMcdMigration(
+        migrator = new MCDMigrator(
             address(tub),
             address(vat),
             address(manager),
@@ -154,8 +154,8 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         tub.give(bytes32(uint(0x1)), address(proxy));
 
         sai.approve(address(saiJoin), uint(-1));
-        sai.approve(address(migration), uint(-1));
-        dai.approve(address(migration), uint(-1));
+        sai.approve(address(migrator), uint(-1));
+        dai.approve(address(migrator), uint(-1));
         gov.approve(address(proxy), uint(-1));
     }
 
@@ -169,20 +169,20 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
     function testSwapSaiToDai() public {
         assertEq(sai.balanceOf(address(this)), 100 ether);
         assertEq(dai.balanceOf(address(this)), 0);
-        migration.swapSaiToDai(100 ether);
+        migrator.swapSaiToDai(100 ether);
         assertEq(sai.balanceOf(address(this)), 0 ether);
         assertEq(dai.balanceOf(address(this)), 100 ether);
-        (uint ink, uint art) = vat.urns("SAI", address(migration));
+        (uint ink, uint art) = vat.urns("SAI", address(migrator));
         assertEq(ink, 100 ether);
         assertEq(art, 100 ether);
     }
 
     function testSwapDaiToSai() public {
         testSwapSaiToDai();
-        migration.swapDaiToSai(60 ether);
+        migrator.swapDaiToSai(60 ether);
         assertEq(sai.balanceOf(address(this)), 60 ether);
         assertEq(dai.balanceOf(address(this)), 40 ether);
-        (uint ink, uint art) = vat.urns("SAI", address(migration));
+        (uint ink, uint art) = vat.urns("SAI", address(migrator));
         assertEq(ink, 40 ether);
         assertEq(art, 40 ether);
     }
@@ -194,36 +194,36 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
 
         ethJoin.join(manager.urns(cdp), 1 ether);
         manager.frob(cdp, address(this), 1 ether, 50 ether);
-        vat.hope(address(migration));
-        migration.vatMoveIn(50 * 10 ** 45);
+        vat.hope(address(migrator));
+        migrator.vatMoveIn(50 * 10 ** 45);
     }
 
     function testMoveFundsIn() public {
-        assertEq(vat.dai(address(migration)), 0);
+        assertEq(vat.dai(address(migrator)), 0);
         sendFunds();
     }
 
     function testMoveFundsOut() public {
         sendFunds();
-        assertEq(vat.dai(address(migration)), 50 * 10 ** 45);
+        assertEq(vat.dai(address(migrator)), 50 * 10 ** 45);
         assertEq(vat.dai(address(this)), 0);
-        migration.vatMoveOut(20 * 10 ** 45);
-        assertEq(vat.dai(address(migration)), 30 * 10 ** 45);
+        migrator.vatMoveOut(20 * 10 ** 45);
+        assertEq(vat.dai(address(migrator)), 30 * 10 ** 45);
         assertEq(vat.dai(address(this)), 20 * 10 ** 45);
-        migration.vatMoveOut(30 * 10 ** 45);
-        assertEq(vat.dai(address(migration)), 0);
+        migrator.vatMoveOut(30 * 10 ** 45);
+        assertEq(vat.dai(address(migrator)), 0);
         assertEq(vat.dai(address(this)), 50 * 10 ** 45);
     }
 
     function testMigrateCDP() public {
-        testSwapSaiToDai(); // Migration contract builds a MCD CDP of 100 DAI
+        testSwapSaiToDai(); // migrator contract builds a MCD CDP of 100 DAI
         sendFunds();
         bytes32 cup = bytes32(uint(1));
         (,uint ink, uint art,) = tub.cups(cup);
         assertEq(ink, 20 ether); // 21 ETH = 20 SKR
         assertEq(art, 50 ether);
-        uint cdp = this.migrate(address(migration), cup);
-        assertEq(vat.dai(address(migration)), 50 * 10 ** 45);
+        uint cdp = this.migrate(address(migrator), cup);
+        assertEq(vat.dai(address(migrator)), 50 * 10 ** 45);
         (, ink, art,) = tub.cups(cup);
         assertEq(ink, 0);
         assertEq(art, 0);

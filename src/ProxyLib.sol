@@ -20,20 +20,20 @@ pragma solidity >=0.5.0;
 import "ds-math/math.sol";
 
 import { SaiTubLike } from "./Interfaces.sol";
-import "./ScdMcdMigration.sol";
+import "./MCDMigrator.sol";
 
 // This contract is intended to be executed via the Profile proxy of a user (DSProxy) which owns the SCD CDP
 contract ProxyLib is DSMath {
-    function migrate(address scdMcdMigration, bytes32 cup) public returns (uint cdp) {
-        SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
+    function migrate(address migrator, bytes32 cup) public returns (uint cdp) {
+        SaiTubLike tub = MCDMigrator(migrator).tub();
         // Transfer ownership of SCD CDP to the migration contract
-        tub.give(cup, scdMcdMigration);
+        tub.give(cup, migrator);
         // Get necessary MKR fee and move it to the migration contract
         (bytes32 val, bool ok) = tub.pep().peek();
         if (ok && uint(val) != 0) {
-            tub.gov().transferFrom(msg.sender, scdMcdMigration, wdiv(tub.rap(cup), uint(val)));
+            tub.gov().transferFrom(msg.sender, migrator, wdiv(tub.rap(cup), uint(val)));
         }
         // Execute migrate function
-        cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
+        cdp = MCDMigrator(migrator).migrate(cup);
     }
 }

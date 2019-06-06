@@ -1,4 +1,4 @@
-/// ScdMcdMigration.sol
+/// MCDMigrator.sol
 
 // Copyright (C) 2018 Gonzalo Balabasquer <gbalabasquer@gmail.com>
 //
@@ -19,7 +19,7 @@ pragma solidity >=0.5.0;
 
 import {SaiTubLike, ManagerLike, JoinLike, GemLike, VatLike} from "./Interfaces.sol";
 
-contract ScdMcdMigration {
+contract MCDMigrator {
     SaiTubLike                  public tub;
     VatLike                     public vat;
     ManagerLike                 public cdpManager;
@@ -134,8 +134,10 @@ contract ScdMcdMigration {
             address(this),
             address(this),
             address(this),
-            -toInt(debtAmt), // debtAmt needs to be <= than the SAI deposited in this CDP
-            -toInt(debtAmt) // debtAmt needs to be <= than the DAI funds deposited in the migration contract
+            // debtAmt needs to be <= than the SAI deposited in this CDP
+            -toInt(debtAmt),
+            // debtAmt needs to be <= than the DAI funds deposited in the migration contract
+            -toInt(debtAmt)
         );
         saiJoin.exit(address(this), debtAmt); // SAI is exited as a token
 
