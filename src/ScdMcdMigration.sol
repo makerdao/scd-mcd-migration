@@ -24,9 +24,8 @@ contract ScdMcdMigration {
     address                     public vat;
     ManagerLike                 public cdpManager;
     JoinLike                    public saiJoin;
-    JoinLike                    public ethJoin;
+    JoinLike                    public wethJoin;
     JoinLike                    public daiJoin;
-    address                     public proxyCalls;
     mapping (address => uint)   public gems;
 
     constructor(
@@ -34,20 +33,20 @@ contract ScdMcdMigration {
         address vat_, // MCD vat contract address
         address cdpManager_, // MCD manager contract address
         address saiJoin_, // MCD SAI adapter contract address
-        address ethJoin_, // MCD ETH adapter contract address
+        address wethJoin_, // MCD ETH adapter contract address
         address daiJoin_ // MCD DAI adapter contract address
     ) public {
         tub = SaiTubLike(tub_);
         vat = vat_;
         cdpManager = ManagerLike(cdpManager_);
         saiJoin = JoinLike(saiJoin_);
-        ethJoin = JoinLike(ethJoin_);
+        wethJoin = JoinLike(wethJoin_);
         daiJoin = JoinLike(daiJoin_);
         tub.gov().approve(address(tub), uint(-1));
         tub.skr().approve(address(tub), uint(-1));
         tub.sai().approve(address(tub), uint(-1));
         tub.sai().approve(address(saiJoin), uint(-1));
-        ethJoin.gem().approve(address(ethJoin), uint(-1));
+        wethJoin.gem().approve(address(wethJoin), uint(-1));
         daiJoin.dai().approve(address(daiJoin), uint(-1));
         VatLike(vat).hope(address(daiJoin));
     }
@@ -124,12 +123,12 @@ contract ScdMcdMigration {
     function migrate(
         bytes32 cup
     ) external returns (uint cdp) {
-        // Gets values
+        // Get values
         uint debtAmt = tub.tab(cup); // CDP SAI debt
         uint pethAmt = tub.ink(cup); // CDP locked collateral
         uint ethAmt = tub.bid(pethAmt); // CDP locked collateral equiv in ETH
 
-        // Takes SAI out from MCD SAI CDP. For this operation is needed that the migration contract has DAI funds deposited
+        // Take SAI out from MCD SAI CDP. For this operation is needed that the migration contract has DAI funds deposited
         VatLike(vat).frob(
             bytes32(JoinLike(saiJoin).ilk()),
             address(this),
@@ -140,31 +139,29 @@ contract ScdMcdMigration {
         );
         saiJoin.exit(address(this), debtAmt); // SAI is exited as a token
 
-        // Shuts SAI CDP and gets WETH back
+        // Shut SAI CDP and gets WETH back
         tub.shut(cup); // CDP is closed using the SAI exited one line of code before and the MKR previously sent by the user (via the proxy call)
         tub.exit(pethAmt); // Converts PETH to WETH
 
-        // Opens future user's CDP in MCD
-        cdp = ManagerLike(cdpManager).open(JoinLike(ethJoin).ilk());
+        // Open future user's CDP in MCD
+        cdp = ManagerLike(cdpManager).open(JoinLike(wethJoin).ilk());
 
-        // Joins WETH to Adapter
+        // Join WETH to Adapter
         // IMPORTANT: It assumes the WETH contract is the same for SCD than MCD,
         //            otherwise the code should withdraw from SCD WETH and deposit into the MCD one
-        ethJoin.join(ManagerLike(cdpManager).urns(cdp), ethAmt);
+        wethJoin.join(ManagerLike(cdpManager).urns(cdp), ethAmt);
 
-        // Locks WETH in future user's CDP, generates debt to compensate funds previously used
-        (, uint rate,,,) = VatLike(vat).ilks(JoinLike(ethJoin).ilk());
+        // Lock WETH in future user's CDP, generates debt to compensate funds previously used
+        (, uint rate,,,) = VatLike(vat).ilks(JoinLike(wethJoin).ilk());
         ManagerLike(cdpManager).frob(
             cdp,
             toInt(ethAmt),
             toInt(mul(debtAmt, 10 ** 27) / rate + 1) // To avoid rounding issues we add an extra wei of debt
         );
-        // Moves DAI balance to migration contract (to recover the used funds)
+        // Move DAI balance to migration contract (to recover the used funds)
         ManagerLike(cdpManager).move(cdp, address(this), mul(debtAmt, 10 ** 27));
 
-        // Sets ownership of CDP to the user
+        // Set ownership of CDP to the user
         ManagerLike(cdpManager).give(cdp, msg.sender);
     }
-
-    function() external payable {}
 }
