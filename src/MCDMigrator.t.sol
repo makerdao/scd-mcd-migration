@@ -166,10 +166,10 @@ contract MCDMigratorTest is DssDeployTestBase {
         }
     }
 
-    function testSwapSaiToDai() public {
+    function testSai2Dai() public {
         assertEq(sai.balanceOf(address(this)), 100 ether);
         assertEq(dai.balanceOf(address(this)), 0);
-        migrator.swapSaiToDai(100 ether);
+        migrator.sai2dai(100 ether);
         assertEq(sai.balanceOf(address(this)), 0 ether);
         assertEq(dai.balanceOf(address(this)), 100 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migrator));
@@ -177,9 +177,9 @@ contract MCDMigratorTest is DssDeployTestBase {
         assertEq(art, 100 ether);
     }
 
-    function testSwapDaiToSai() public {
-        testSwapSaiToDai();
-        migrator.swapDaiToSai(60 ether);
+    function testDai2Sai() public {
+        testSai2Dai();
+        migrator.dai2sai(60 ether);
         assertEq(sai.balanceOf(address(this)), 60 ether);
         assertEq(dai.balanceOf(address(this)), 40 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migrator));
@@ -216,7 +216,7 @@ contract MCDMigratorTest is DssDeployTestBase {
     }
 
     function testMigrateCDP() public {
-        testSwapSaiToDai(); // migrator contract builds a MCD CDP of 100 DAI
+        testSai2Dai(); // migrator contract builds a MCD CDP of 100 DAI
         sendFunds();
         bytes32 cup = bytes32(uint(1));
         (,uint ink, uint art,) = tub.cups(cup);

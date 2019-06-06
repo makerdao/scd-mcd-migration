@@ -71,7 +71,7 @@ contract MCDMigrator {
     // Function to swap SAI to DAI
     // This function is to be used by users that want to get new DAI in exchange of old one (aka SAI)
     // wad amount has to be <= the value to reach the debt ceiling (the minimum between general and ilk one)
-    function swapSaiToDai(
+    function sai2dai(
         uint wad
     ) external {
         // Gets wad amount of SAI from user's wallet:
@@ -87,7 +87,7 @@ contract MCDMigrator {
     // Function to swap DAI to SAI
     // This function is to be used by users that want to get old DAI (SAI) in exchange of new one (DAI)
     // wad amount has to be <= the amount of SAI locked (and DAI generated) in the migration contract SAI CDP
-    function swapDaiToSai(
+    function dai2sai(
         uint wad
     ) external {
         // Gets wad amount of DAI from user's wallet:
