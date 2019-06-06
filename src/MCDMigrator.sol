@@ -39,9 +39,9 @@ contract MCDMigrator {
         tub = SaiTubLike(tub_);
         vat = VatLike(vat_);
         cdpManager = ManagerLike(cdpManager_);
-        saiJoin = JoinLike(saiJoin_);
+        saiJoin  = JoinLike(saiJoin_);
         wethJoin = JoinLike(wethJoin_);
-        daiJoin = JoinLike(daiJoin_);
+        daiJoin  = JoinLike(daiJoin_);
         tub.gov().approve(address(tub), uint(-1));
         tub.skr().approve(address(tub), uint(-1));
         tub.sai().approve(address(tub), uint(-1));
@@ -126,7 +126,7 @@ contract MCDMigrator {
         // Get values
         uint debtAmt = tub.tab(cup); // CDP SAI debt
         uint pethAmt = tub.ink(cup); // CDP locked collateral
-        uint ethAmt = tub.bid(pethAmt); // CDP locked collateral equiv in ETH
+        uint ethAmt  = tub.bid(pethAmt); // CDP locked collateral equiv in ETH
 
         // Take SAI out from MCD SAI CDP. For this operation is needed that the migration contract has DAI funds deposited
         vat.frob(
