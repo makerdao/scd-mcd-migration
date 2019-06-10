@@ -26,7 +26,7 @@ contract ScdMcdMigration {
     JoinLike                    public saiJoin;
     JoinLike                    public wethJoin;
     JoinLike                    public daiJoin;
-    mapping (address => uint)   public gems;
+    mapping (address => uint)   public sum;
 
     constructor(
         address tub_, // SCD tub contract address
@@ -106,12 +106,12 @@ contract ScdMcdMigration {
     // IMPORTANT: Funds should not be sent directly or they will not be able to be withdrawn (only use this function)
     function vatMoveIn(uint rad) external {
         VatLike(vat).move(msg.sender, address(this), rad);
-        gems[msg.sender] = add(gems[msg.sender], rad);
+        sum[msg.sender] = add(sum[msg.sender], rad);
     }
 
     // Function to withdraw DAI funds from the migration contract
     function vatMoveOut(uint rad) external {
-        gems[msg.sender] = sub(gems[msg.sender], rad);
+        sum[msg.sender] = sub(sum[msg.sender], rad);
         VatLike(vat).move(address(this), msg.sender, rad);
     }
 
