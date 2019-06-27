@@ -6,7 +6,7 @@ import "ds-math/math.sol";
 import {DssDeployTestBase} from "dss-deploy/DssDeploy.t.base.sol";
 import {DssCdpManager} from "dss-cdp-manager/DssCdpManager.sol";
 import {GemJoin} from "dss/join.sol";
-import {Spotter} from "dss-deploy/poke.sol";
+import {Spotter} from "dss/spot.sol";
 import {DSProxy, DSProxyFactory} from "ds-proxy/proxy.sol";
 import {WETH9_} from "ds-weth/weth9.sol";
 
