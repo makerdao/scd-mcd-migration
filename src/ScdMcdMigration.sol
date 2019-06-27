@@ -9,7 +9,6 @@ contract ScdMcdMigration {
     JoinLike                    public saiJoin;
     JoinLike                    public wethJoin;
     JoinLike                    public daiJoin;
-    mapping (address => uint)   public sum;
 
     constructor(
         address tub_, // SCD tub contract address
@@ -53,7 +52,7 @@ contract ScdMcdMigration {
 
     // Function to swap SAI to DAI
     // This function is to be used by users that want to get new DAI in exchange of old one (aka SAI)
-    // wad amount has to be <= the value to reach the debt ceiling (the minimum between general and ilk one)
+    // wad amount has to be <= the value pending to reach the debt ceiling (the minimum between general and ilk one)
     function swapSaiToDai(
         uint wad
     ) external {
@@ -68,7 +67,7 @@ contract ScdMcdMigration {
     }
 
     // Function to swap DAI to SAI
-    // This function is to be used by users that want to get old DAI (SAI) in exchange of new one (DAI)
+    // This function is to be used by users that want to get SAI in exchange of DAI
     // wad amount has to be <= the amount of SAI locked (and DAI generated) in the migration contract SAI CDP
     function swapDaiToSai(
         uint wad
@@ -83,26 +82,8 @@ contract ScdMcdMigration {
         saiJoin.exit(msg.sender, wad);
     }
 
-    // Function to deposit DAI funds in the migration contract
-    // This function is intended to be used internally. These funds are needed to make the CDP migrate funtion to work.
-    // There is not benefit at all for the depositer to provide these funds to the contract.
-    // IMPORTANT: Funds should not be sent directly or they will not be able to be withdrawn (only use this function)
-    function vatMoveIn(uint rad) external {
-        VatLike(vat).move(msg.sender, address(this), rad);
-        sum[msg.sender] = add(sum[msg.sender], rad);
-    }
-
-    // Function to withdraw DAI funds from the migration contract
-    function vatMoveOut(uint rad) external {
-        sum[msg.sender] = sub(sum[msg.sender], rad);
-        VatLike(vat).move(address(this), msg.sender, rad);
-    }
-
     // Function to migrate a SCD CDP to MCD one (needs to be used via a proxy so the code can be kept simpler). Check ProxyLib.sol code for usage.
-    // In order to use the migrate functionality the contract needs to accomplish the following 2 conditions:
-    // 1. It has to have its MCD SAI CDP with a debt >= than the SCD CDP debt to migrate (to be able to balance out)
-    // 2. It has to have deposited DAI funds >= than the SCD CDP debt to migrate (to be able to payback debt, so SAI can be taken out).
-    //    The funds will be returned at the end when the new MCD ETH CDP of the user is created.
+    // In order to use migrate function, SCD CDP debtAmt needs to be <= SAI previously deposited in the SAI CDP * (100% - Collateralization Ratio)
     function migrate(
         bytes32 cup
     ) external returns (uint cdp) {
@@ -111,19 +92,21 @@ contract ScdMcdMigration {
         uint pethAmt = tub.ink(cup); // CDP locked collateral
         uint ethAmt = tub.bid(pethAmt); // CDP locked collateral equiv in ETH
 
-        // Take SAI out from MCD SAI CDP. For this operation is needed that the migration contract has DAI funds deposited
+        // Take SAI out from MCD SAI CDP. For this operation is necessary to have a very low collateralization ratio
+        // This is not actually a problem as this ilk will only be accessed by this migration contract,
+        // which will make sure to have the amounts balanced out at the end of the execution.
         VatLike(vat).frob(
             bytes32(JoinLike(saiJoin).ilk()),
             address(this),
             address(this),
             address(this),
-            -toInt(debtAmt), // debtAmt needs to be <= than the SAI deposited in this CDP
-            -toInt(debtAmt) // debtAmt needs to be <= than the DAI funds deposited in the migration contract
+            -toInt(debtAmt),
+            0
         );
         saiJoin.exit(address(this), debtAmt); // SAI is exited as a token
 
         // Shut SAI CDP and gets WETH back
-        tub.shut(cup); // CDP is closed using the SAI exited one line of code before and the MKR previously sent by the user (via the proxy call)
+        tub.shut(cup); // CDP is closed using the SAI just exited and the MKR previously sent by the user (via the proxy call)
         tub.exit(pethAmt); // Converts PETH to WETH
 
         // Open future user's CDP in MCD
@@ -134,15 +117,24 @@ contract ScdMcdMigration {
         //            otherwise the code should withdraw from SCD WETH and deposit into the MCD one
         wethJoin.join(ManagerLike(cdpManager).urns(cdp), ethAmt);
 
-        // Lock WETH in future user's CDP, generates debt to compensate funds previously used
+        // Lock WETH in future user's CDP and generate debt to compensate the SAI used to paid the SCD CDP
         (, uint rate,,,) = VatLike(vat).ilks(JoinLike(wethJoin).ilk());
         ManagerLike(cdpManager).frob(
             cdp,
             toInt(ethAmt),
             toInt(mul(debtAmt, 10 ** 27) / rate + 1) // To avoid rounding issues we add an extra wei of debt
         );
-        // Move DAI balance to migration contract (to recover the used funds)
+        // Move DAI generated to migration contract (to recover the used funds)
         ManagerLike(cdpManager).move(cdp, address(this), mul(debtAmt, 10 ** 27));
+        // Re-balance MCD SAI migration contract's CDP
+        VatLike(vat).frob(
+            bytes32(JoinLike(saiJoin).ilk()),
+            address(this),
+            address(this),
+            address(this),
+            0,
+            -toInt(debtAmt)
+        );
 
         // Set ownership of CDP to the user
         ManagerLike(cdpManager).give(cdp, msg.sender);

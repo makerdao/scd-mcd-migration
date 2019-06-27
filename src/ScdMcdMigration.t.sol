@@ -43,7 +43,7 @@ contract MockSaiTub is DSMath {
         sai = sai_;
         pep = new MockPep();
         cupLad = msg.sender;
-        cupArt = 50 ether; // Random debt
+        cupArt = 99.999999999999999999 ether;
     }
 
     function cups(bytes32) public view returns (address lad_, uint ink_, uint art_, uint) {
@@ -135,7 +135,8 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         // Create SAI collateral
         saiJoin = new GemJoin(address(vat), "SAI", address(sai));
         dssDeploy.deployCollateral("SAI", address(saiJoin), address(new MockSaiPip()));
-        this.file(address(vat), bytes32("SAI"), bytes32("spot"), uint(10 ** 27));
+        this.file(address(spotter), "SAI", "mat", uint(1)); // The lowest collateralization ratio possible
+        spotter.poke("SAI");
         this.file(address(vat), bytes32("SAI"), bytes32("line"), 10000 * 10 ** 45);
 
         migration = new ScdMcdMigration(
@@ -187,49 +188,27 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         assertEq(art, 40 ether);
     }
 
-    function sendFunds() public {
-        uint cdp = manager.open("ETH");
-        weth.deposit.value(1 ether)();
-        weth.approve(address(ethJoin), 1 ether);
-
-        ethJoin.join(manager.urns(cdp), 1 ether);
-        manager.frob(cdp, address(this), 1 ether, 50 ether);
-        vat.hope(address(migration));
-        migration.vatMoveIn(50 * 10 ** 45);
-    }
-
-    function testMoveFundsIn() public {
-        assertEq(vat.dai(address(migration)), 0);
-        sendFunds();
-    }
-
-    function testMoveFundsOut() public {
-        sendFunds();
-        assertEq(vat.dai(address(migration)), 50 * 10 ** 45);
-        assertEq(vat.dai(address(this)), 0);
-        migration.vatMoveOut(20 * 10 ** 45);
-        assertEq(vat.dai(address(migration)), 30 * 10 ** 45);
-        assertEq(vat.dai(address(this)), 20 * 10 ** 45);
-        migration.vatMoveOut(30 * 10 ** 45);
-        assertEq(vat.dai(address(migration)), 0);
-        assertEq(vat.dai(address(this)), 50 * 10 ** 45);
-    }
-
     function testMigrateCDP() public {
-        testSwapSaiToDai(); // Migration contract builds a MCD CDP of 100 DAI
-        sendFunds();
+        testSwapSaiToDai();
+        // After testSwapSaiToDai() migration contract holds a MCD CDP of 100 SAI.
+        // As liquidation ratio is 0.00...001%, 99.99...99 SAI max can be used
         bytes32 cup = bytes32(uint(1));
         (,uint ink, uint art,) = tub.cups(cup);
         assertEq(ink, 20 ether); // 21 ETH = 20 SKR
-        assertEq(art, 50 ether);
+        assertEq(art, 99.999999999999999999 ether);
+        (ink, art) = vat.urns("SAI", address(migration));
+        assertEq(ink, 100 ether);
+        assertEq(art, 100 ether);
         uint cdp = this.migrate(address(migration), cup);
-        assertEq(vat.dai(address(migration)), 50 * 10 ** 45);
         (, ink, art,) = tub.cups(cup);
         assertEq(ink, 0);
         assertEq(art, 0);
+        (ink, art) = vat.urns("SAI", address(migration));
+        assertEq(ink, 1);
+        assertEq(art, 1);
         address urn = manager.urns(cdp);
         (ink, art) = vat.urns("ETH", urn);
         assertEq(ink, 21 ether);
-        assertEq(art, 50 ether + 1);
+        assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
     }
 }
