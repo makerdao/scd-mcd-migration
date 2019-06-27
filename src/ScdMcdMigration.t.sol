@@ -5,13 +5,13 @@ import "ds-math/math.sol";
 
 import {DssDeployTestBase} from "dss-deploy/DssDeploy.t.base.sol";
 import {DssCdpManager} from "dss-cdp-manager/DssCdpManager.sol";
-import {GemJoin} from "dss/join.sol";
 import {Spotter} from "dss/spot.sol";
 import {DSProxy, DSProxyFactory} from "ds-proxy/proxy.sol";
 import {WETH9_} from "ds-weth/weth9.sol";
 
-import "./ScdMcdMigration.sol";
-import "./ProxyLib.sol";
+import {ScdMcdMigration} from "./ScdMcdMigration.sol";
+import {ProxyLib} from "./ProxyLib.sol";
+import {AuthGemJoin} from "./join.sol";
 
 contract MockSaiPip {
     function peek() public pure returns (bytes32 val, bool zzz) {
@@ -106,7 +106,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
     MockSaiTub          tub;
     ScdMcdMigration     migration;
     DssCdpManager       manager;
-    GemJoin             saiJoin;
+    AuthGemJoin         saiJoin;
     Spotter             saiPrice;
     DSProxy             proxy;
     address             proxyLib;
@@ -133,7 +133,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         manager = new DssCdpManager(address(vat));
 
         // Create SAI collateral
-        saiJoin = new GemJoin(address(vat), "SAI", address(sai));
+        saiJoin = new AuthGemJoin(address(vat), "SAI", address(sai));
         dssDeploy.deployCollateral("SAI", address(saiJoin), address(new MockSaiPip()));
         this.file(address(spotter), "SAI", "mat", uint(1)); // The lowest collateralization ratio possible
         spotter.poke("SAI");
@@ -168,6 +168,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
     }
 
     function testSwapSaiToDai() public {
+        saiJoin.rely(address(migration));
         assertEq(sai.balanceOf(address(this)), 100 ether);
         assertEq(dai.balanceOf(address(this)), 0);
         migration.swapSaiToDai(100 ether);
@@ -176,6 +177,10 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         (uint ink, uint art) = vat.urns("SAI", address(migration));
         assertEq(ink, 100 ether);
         assertEq(art, 100 ether);
+    }
+
+    function testFailSwapSaiToDaiAuth() public {
+        migration.swapSaiToDai(100 ether);
     }
 
     function testSwapDaiToSai() public {
