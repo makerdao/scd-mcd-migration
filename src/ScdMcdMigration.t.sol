@@ -141,7 +141,6 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
 
         migration = new ScdMcdMigration(
             address(tub),
-            address(vat),
             address(manager),
             address(saiJoin),
             address(ethJoin),

@@ -38,6 +38,7 @@ contract VatLike {
 }
 
 contract ManagerLike {
+    function vat() public view returns (address);
     function urns(uint) public view returns (address);
     function open(bytes32) public returns (uint);
     function frob(uint, int, int) public;

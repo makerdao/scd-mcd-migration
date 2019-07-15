@@ -4,7 +4,7 @@ import {SaiTubLike, ManagerLike, JoinLike, GemLike, VatLike} from "./Interfaces.
 
 contract ScdMcdMigration {
     SaiTubLike                  public tub;
-    address                     public vat;
+    VatLike                     public vat;
     ManagerLike                 public cdpManager;
     JoinLike                    public saiJoin;
     JoinLike                    public wethJoin;
@@ -12,15 +12,14 @@ contract ScdMcdMigration {
 
     constructor(
         address tub_, // SCD tub contract address
-        address vat_, // MCD vat contract address
         address cdpManager_, // MCD manager contract address
         address saiJoin_, // MCD SAI adapter contract address
         address wethJoin_, // MCD ETH adapter contract address
         address daiJoin_ // MCD DAI adapter contract address
     ) public {
         tub = SaiTubLike(tub_);
-        vat = vat_;
         cdpManager = ManagerLike(cdpManager_);
+        vat = VatLike(ManagerLike(cdpManager).vat());
         saiJoin = JoinLike(saiJoin_);
         wethJoin = JoinLike(wethJoin_);
         daiJoin = JoinLike(daiJoin_);
@@ -30,7 +29,7 @@ contract ScdMcdMigration {
         tub.sai().approve(address(saiJoin), uint(-1));
         wethJoin.gem().approve(address(wethJoin), uint(-1));
         daiJoin.dai().approve(address(daiJoin), uint(-1));
-        VatLike(vat).hope(address(daiJoin));
+        vat.hope(address(daiJoin));
     }
 
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -61,7 +60,7 @@ contract ScdMcdMigration {
         // Joins the SAI wad amount to the `vat`:
         saiJoin.join(address(this), wad);
         // Locks the SAI wad amount to the CDP and generates the same wad amount of DAI
-        VatLike(vat).frob(bytes32(JoinLike(saiJoin).ilk()), address(this), address(this), address(this), toInt(wad), toInt(wad));
+        vat.frob(bytes32(JoinLike(saiJoin).ilk()), address(this), address(this), address(this), toInt(wad), toInt(wad));
         // Sends DAI wad amount as a ERC20 token to the user's wallet
         daiJoin.exit(msg.sender, wad);
     }
@@ -77,7 +76,7 @@ contract ScdMcdMigration {
         // Joins the DAI wad amount to the vat:
         daiJoin.join(address(this), wad);
         // Paybacks the DAI wad amount and unlocks the same value of SAI collateral
-        VatLike(vat).frob(bytes32(JoinLike(saiJoin).ilk()), address(this), address(this), address(this), -toInt(wad), -toInt(wad));
+        vat.frob(bytes32(JoinLike(saiJoin).ilk()), address(this), address(this), address(this), -toInt(wad), -toInt(wad));
         // Sends SAI wad amount as a ERC20 token to the user's wallet
         saiJoin.exit(msg.sender, wad);
     }
@@ -95,7 +94,7 @@ contract ScdMcdMigration {
         // Take SAI out from MCD SAI CDP. For this operation is necessary to have a very low collateralization ratio
         // This is not actually a problem as this ilk will only be accessed by this migration contract,
         // which will make sure to have the amounts balanced out at the end of the execution.
-        VatLike(vat).frob(
+        vat.frob(
             bytes32(JoinLike(saiJoin).ilk()),
             address(this),
             address(this),
@@ -118,7 +117,7 @@ contract ScdMcdMigration {
         wethJoin.join(ManagerLike(cdpManager).urns(cdp), ethAmt);
 
         // Lock WETH in future user's CDP and generate debt to compensate the SAI used to paid the SCD CDP
-        (, uint rate,,,) = VatLike(vat).ilks(JoinLike(wethJoin).ilk());
+        (, uint rate,,,) = vat.ilks(JoinLike(wethJoin).ilk());
         ManagerLike(cdpManager).frob(
             cdp,
             toInt(ethAmt),
@@ -127,7 +126,7 @@ contract ScdMcdMigration {
         // Move DAI generated to migration contract (to recover the used funds)
         ManagerLike(cdpManager).move(cdp, address(this), mul(debtAmt, 10 ** 27));
         // Re-balance MCD SAI migration contract's CDP
-        VatLike(vat).frob(
+        vat.frob(
             bytes32(JoinLike(saiJoin).ilk()),
             address(this),
             address(this),
