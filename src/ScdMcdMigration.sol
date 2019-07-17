@@ -11,11 +11,11 @@ contract ScdMcdMigration {
     JoinLike                    public daiJoin;
 
     constructor(
-        address tub_, // SCD tub contract address
-        address cdpManager_, // MCD manager contract address
-        address saiJoin_, // MCD SAI adapter contract address
-        address wethJoin_, // MCD ETH adapter contract address
-        address daiJoin_ // MCD DAI adapter contract address
+        address tub_,           // SCD tub contract address
+        address cdpManager_,    // MCD manager contract address
+        address saiJoin_,       // MCD SAI collateral adapter contract address
+        address wethJoin_,      // MCD ETH collateral adapter contract address
+        address daiJoin_        // MCD DAI adapter contract address
     ) public {
         tub = SaiTubLike(tub_);
         cdpManager = ManagerLike(cdpManager_);
@@ -23,6 +23,10 @@ contract ScdMcdMigration {
         saiJoin = JoinLike(saiJoin_);
         wethJoin = JoinLike(wethJoin_);
         daiJoin = JoinLike(daiJoin_);
+
+        require(wethJoin.gem() == tub.gem(), "non-matching-weth");
+        require(saiJoin.gem() == tub.sai(), "non-matching-sai");
+
         tub.gov().approve(address(tub), uint(-1));
         tub.skr().approve(address(tub), uint(-1));
         tub.sai().approve(address(tub), uint(-1));
@@ -55,13 +59,13 @@ contract ScdMcdMigration {
     function swapSaiToDai(
         uint wad
     ) external {
-        // Gets wad amount of SAI from user's wallet:
+        // Get wad amount of SAI from user's wallet:
         saiJoin.gem().transferFrom(msg.sender, address(this), wad);
-        // Joins the SAI wad amount to the `vat`:
+        // Join the SAI wad amount to the `vat`:
         saiJoin.join(address(this), wad);
-        // Locks the SAI wad amount to the CDP and generates the same wad amount of DAI
-        vat.frob(bytes32(JoinLike(saiJoin).ilk()), address(this), address(this), address(this), toInt(wad), toInt(wad));
-        // Sends DAI wad amount as a ERC20 token to the user's wallet
+        // Lock the SAI wad amount to the CDP and generate the same wad amount of DAI
+        vat.frob(JoinLike(saiJoin).ilk(), address(this), address(this), address(this), toInt(wad), toInt(wad));
+        // Send DAI wad amount as a ERC20 token to the user's wallet
         daiJoin.exit(msg.sender, wad);
     }
 
@@ -71,13 +75,13 @@ contract ScdMcdMigration {
     function swapDaiToSai(
         uint wad
     ) external {
-        // Gets wad amount of DAI from user's wallet:
+        // Get wad amount of DAI from user's wallet:
         daiJoin.dai().transferFrom(msg.sender, address(this), wad);
-        // Joins the DAI wad amount to the vat:
+        // Join the DAI wad amount to the vat:
         daiJoin.join(address(this), wad);
-        // Paybacks the DAI wad amount and unlocks the same value of SAI collateral
-        vat.frob(bytes32(JoinLike(saiJoin).ilk()), address(this), address(this), address(this), -toInt(wad), -toInt(wad));
-        // Sends SAI wad amount as a ERC20 token to the user's wallet
+        // Payback the DAI wad amount and unlocks the same value of SAI collateral
+        vat.frob(JoinLike(saiJoin).ilk(), address(this), address(this), address(this), -toInt(wad), -toInt(wad));
+        // Send SAI wad amount as a ERC20 token to the user's wallet
         saiJoin.exit(msg.sender, wad);
     }
 
@@ -87,8 +91,8 @@ contract ScdMcdMigration {
         bytes32 cup
     ) external returns (uint cdp) {
         // Get values
-        uint debtAmt = tub.tab(cup); // CDP SAI debt
-        uint pethAmt = tub.ink(cup); // CDP locked collateral
+        uint debtAmt = tub.tab(cup);    // CDP SAI debt
+        uint pethAmt = tub.ink(cup);    // CDP locked collateral
         uint ethAmt = tub.bid(pethAmt); // CDP locked collateral equiv in ETH
 
         // Take SAI out from MCD SAI CDP. For this operation is necessary to have a very low collateralization ratio
@@ -105,15 +109,13 @@ contract ScdMcdMigration {
         saiJoin.exit(address(this), debtAmt); // SAI is exited as a token
 
         // Shut SAI CDP and gets WETH back
-        tub.shut(cup); // CDP is closed using the SAI just exited and the MKR previously sent by the user (via the proxy call)
-        tub.exit(pethAmt); // Converts PETH to WETH
+        tub.shut(cup);      // CDP is closed using the SAI just exited and the MKR previously sent by the user (via the proxy call)
+        tub.exit(pethAmt);  // Converts PETH to WETH
 
         // Open future user's CDP in MCD
         cdp = ManagerLike(cdpManager).open(JoinLike(wethJoin).ilk());
 
         // Join WETH to Adapter
-        // IMPORTANT: It assumes the WETH contract is the same for SCD than MCD,
-        //            otherwise the code should withdraw from SCD WETH and deposit into the MCD one
         wethJoin.join(ManagerLike(cdpManager).urns(cdp), ethAmt);
 
         // Lock WETH in future user's CDP and generate debt to compensate the SAI used to paid the SCD CDP

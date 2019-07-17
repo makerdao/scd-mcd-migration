@@ -11,6 +11,7 @@ contract ValueLike {
 
 contract SaiTubLike {
     function skr() public view returns (GemLike);
+    function gem() public view returns (GemLike);
     function gov() public view returns (GemLike);
     function sai() public view returns (GemLike);
     function pep() public view returns (ValueLike);
@@ -34,7 +35,6 @@ contract VatLike {
     function ilks(bytes32) public view returns (uint, uint, uint, uint, uint);
     function hope(address) public;
     function frob(bytes32, address, address, address, int, int) public;
-    function move(address, address, uint) public;
 }
 
 contract ManagerLike {
