@@ -64,11 +64,13 @@ contract MockSaiTub is DSMath {
         (, ink_,,) = cups(cup);
     }
 
-    function tab(bytes32 cup) public view returns (uint art_) {
+    function tab(bytes32 cup) public returns (uint art_) {
+        cupArt = cupArt;
         (,, art_,) = cups(cup);
     }
 
-    function rap(bytes32) public pure returns (uint) {
+    function rap(bytes32) public returns (uint) {
+        cupArt = cupArt;
         return uint(5 ether); // Random governance + stability fees accumulated
     }
 
