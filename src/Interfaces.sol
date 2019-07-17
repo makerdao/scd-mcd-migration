@@ -15,9 +15,9 @@ contract SaiTubLike {
     function sai() public view returns (GemLike);
     function pep() public view returns (ValueLike);
     function bid(uint) public view returns (uint);
-    function tab(bytes32) public view returns (uint);
-    function rap(bytes32) public view returns (uint);
     function ink(bytes32) public view returns (uint);
+    function tab(bytes32) public returns (uint);
+    function rap(bytes32) public returns (uint);
     function shut(bytes32) public;
     function exit(uint) public;
     function give(bytes32, address) public;
