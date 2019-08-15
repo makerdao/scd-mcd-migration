@@ -6,7 +6,7 @@ import { SaiTubLike } from "./Interfaces.sol";
 import "./ScdMcdMigration.sol";
 
 // This contract is intended to be executed via the Profile proxy of a user (DSProxy) which owns the SCD CDP
-contract ProxyLib is DSMath {
+contract MigrationProxyActions is DSMath {
     function migrate(address payable scdMcdMigration, bytes32 cup) public returns (uint cdp) {
         SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
         // Transfer ownership of SCD CDP to the migration contract

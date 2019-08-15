@@ -85,7 +85,7 @@ contract ScdMcdMigration {
         saiJoin.exit(msg.sender, wad);
     }
 
-    // Function to migrate a SCD CDP to MCD one (needs to be used via a proxy so the code can be kept simpler). Check ProxyLib.sol code for usage.
+    // Function to migrate a SCD CDP to MCD one (needs to be used via a proxy so the code can be kept simpler). Check MigrationProxyActions.sol code for usage.
     // In order to use migrate function, SCD CDP debtAmt needs to be <= SAI previously deposited in the SAI CDP * (100% - Collateralization Ratio)
     function migrate(
         bytes32 cup

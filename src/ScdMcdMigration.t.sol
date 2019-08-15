@@ -4,14 +4,14 @@ import "ds-token/token.sol";
 import "ds-math/math.sol";
 
 import {DssDeployTestBase} from "dss-deploy/DssDeploy.t.base.sol";
+import {AuthGemJoin} from "dss-deploy/join.sol";
 import {DssCdpManager} from "dss-cdp-manager/DssCdpManager.sol";
 import {Spotter} from "dss/spot.sol";
 import {DSProxy, DSProxyFactory} from "ds-proxy/proxy.sol";
 import {WETH9_} from "ds-weth/weth9.sol";
 
 import {ScdMcdMigration} from "./ScdMcdMigration.sol";
-import {ProxyLib} from "./ProxyLib.sol";
-import {AuthGemJoin} from "./join.sol";
+import {MigrationProxyActions} from "./MigrationProxyActions.sol";
 
 contract MockSaiPip {
     function peek() public pure returns (bytes32 val, bool zzz) {
@@ -111,7 +111,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
     AuthGemJoin         saiJoin;
     Spotter             saiPrice;
     DSProxy             proxy;
-    address             proxyLib;
+    address             migrationProxyActions;
 
     function setUp() public {
         super.setUp();
@@ -151,7 +151,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
 
         DSProxyFactory factory = new DSProxyFactory();
         proxy = DSProxy(factory.build());
-        proxyLib = address(new ProxyLib());
+        migrationProxyActions = address(new MigrationProxyActions());
 
         tub.give(bytes32(uint(0x1)), address(proxy));
 
@@ -162,7 +162,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
     }
 
     function migrate(address, bytes32) public returns (uint cdp) {
-        bytes memory response = proxy.execute(proxyLib, msg.data);
+        bytes memory response = proxy.execute(migrationProxyActions, msg.data);
         assembly {
             cdp := mload(add(response, 0x20))
         }
