@@ -1,4 +1,4 @@
-pragma solidity >=0.5.0;
+pragma solidity 0.5.11;
 
 import {SaiTubLike, ManagerLike, JoinLike, GemLike, VatLike} from "./Interfaces.sol";
 
