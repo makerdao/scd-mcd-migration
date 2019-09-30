@@ -1,7 +1,9 @@
 pragma solidity 0.5.11;
 
 contract GemLike {
+    function allowance(address, address) public returns (uint);
     function approve(address, uint) public;
+    function transfer(address, uint) public returns (bool);
     function transferFrom(address, address, uint) public returns (bool);
 }
 
@@ -44,4 +46,9 @@ contract ManagerLike {
     function frob(uint, int, int) public;
     function give(uint, address) public;
     function move(uint, address, uint) public;
+}
+
+contract OtcLike {
+    function getPayAmount(address, address, uint) public view returns (uint);
+    function buyAllAmount(address, uint, address, uint) public;
 }

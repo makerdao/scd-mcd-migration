@@ -65,12 +65,12 @@ contract MockSaiTub is DSMath {
     }
 
     function tab(bytes32 cup) public returns (uint art_) {
-        cupArt = cupArt;
+        cupArt = cupArt; // To force is not a read function and avoid warning
         (,, art_,) = cups(cup);
     }
 
     function rap(bytes32) public returns (uint) {
-        cupArt = cupArt;
+        cupArt = cupArt; // To force is not a read function and avoid warning
         return uint(5 ether); // Random governance + stability fees accumulated
     }
 
@@ -100,7 +100,22 @@ contract MockSaiTub is DSMath {
     }
 }
 
-contract ScdMcdMigrationTest is DssDeployTestBase {
+contract MockOtc is DSMath {
+    function getPayAmount(address payGem, address buyGem, uint buyAmt) public pure returns (uint payAmt) {
+        payGem;
+        buyGem;
+        payAmt = wmul(buyAmt, 300 ether); // Harcoded to simulate 300 payGem = 1 buyGem
+    }
+
+    function buyAllAmount(address buyGem, uint buyAmt, address payGem, uint maxPayAmt) public {
+        uint payAmt = wmul(buyAmt, 300 ether);
+        require(maxPayAmt >= payAmt, "");
+        DSToken(payGem).transferFrom(msg.sender, address(this), payAmt);
+        DSToken(buyGem).transfer(msg.sender, buyAmt);
+    }
+}
+
+contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     DSToken             sai;
     DSToken             skr;
     WETH9_              gem;
@@ -112,6 +127,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
     Spotter             saiPrice;
     DSProxy             proxy;
     address             migrationProxyActions;
+    MockOtc             otc;
 
     function setUp() public {
         super.setUp();
@@ -122,13 +138,15 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         skr = new DSToken("SKR");
         skr.mint(20 ether);
         gov = new DSToken("MKR");
-        gov.mint(20 ether);
+        gov.mint(25 ether);
         sai = new DSToken("SAI");
-        sai.mint(100 ether);
+        sai.mint(110 ether);
 
         tub = new MockSaiTub(weth, skr, gov, sai);
+        otc = new MockOtc();
         weth.transfer(address(tub), 21 ether);
         skr.transfer(address(tub), 20 ether);
+        gov.transfer(address(otc), 5 ether);
         skr.setOwner(address(tub));
         sai.setOwner(address(tub));
 
@@ -161,7 +179,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         gov.approve(address(proxy), uint(-1));
     }
 
-    function migrate(address, bytes32) public returns (uint cdp) {
+    function migrate(address, bytes32, address, address, uint) public returns (uint cdp) {
         bytes memory response = proxy.execute(migrationProxyActions, msg.data);
         assembly {
             cdp := mload(add(response, 0x20))
@@ -170,10 +188,10 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
 
     function testSwapSaiToDai() public {
         saiJoin.rely(address(migration));
-        assertEq(sai.balanceOf(address(this)), 100 ether);
+        assertEq(sai.balanceOf(address(this)), 110 ether);
         assertEq(dai.balanceOf(address(this)), 0);
         migration.swapSaiToDai(100 ether);
-        assertEq(sai.balanceOf(address(this)), 0 ether);
+        assertEq(sai.balanceOf(address(this)), 10 ether);
         assertEq(dai.balanceOf(address(this)), 100 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
         assertEq(ink, 100 ether);
@@ -187,7 +205,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
     function testSwapDaiToSai() public {
         testSwapSaiToDai();
         migration.swapDaiToSai(60 ether);
-        assertEq(sai.balanceOf(address(this)), 60 ether);
+        assertEq(sai.balanceOf(address(this)), 70 ether);
         assertEq(dai.balanceOf(address(this)), 40 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
         assertEq(ink, 40 ether);
@@ -205,7 +223,13 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         (ink, art) = vat.urns("SAI", address(migration));
         assertEq(ink, 100 ether);
         assertEq(art, 100 ether);
-        uint cdp = this.migrate(address(migration), cup);
+        uint cdp = this.migrate(
+            address(migration),
+            cup,
+            address(0),
+            address(0),
+            0
+        );
         (, ink, art,) = tub.cups(cup);
         assertEq(ink, 0);
         assertEq(art, 0);
@@ -216,5 +240,43 @@ contract ScdMcdMigrationTest is DssDeployTestBase {
         (ink, art) = vat.urns("ETH", urn);
         assertEq(ink, 21 ether);
         assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
+    }
+
+    function testMigrateCDPBuyMKR() public {
+        testSwapSaiToDai();
+        bytes32 cup = bytes32(uint(1));
+        sai.approve(address(proxy), 6 ether);
+        (bytes32 val,) = tub.pep().peek();
+        uint cdp = this.migrate(
+            address(migration),
+            cup,
+            address(otc),
+            address(sai),
+            otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)))
+        );
+        (, uint ink, uint art,) = tub.cups(cup);
+        assertEq(ink, 0);
+        assertEq(art, 0);
+        (ink, art) = vat.urns("SAI", address(migration));
+        assertEq(ink, 1);
+        assertEq(art, 1);
+        address urn = manager.urns(cdp);
+        (ink, art) = vat.urns("ETH", urn);
+        assertEq(ink, 21 ether);
+        assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
+    }
+
+    function testFailMigrateCDPBuyMKRExceedsMax() public {
+        testSwapSaiToDai();
+        bytes32 cup = bytes32(uint(1));
+        sai.approve(address(proxy), 6 ether);
+        (bytes32 val,) = tub.pep().peek();
+        this.migrate(
+            address(migration),
+            cup,
+            address(otc),
+            address(sai),
+            otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)) - 1)
+        );
     }
 }
