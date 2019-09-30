@@ -7,13 +7,41 @@ import "./ScdMcdMigration.sol";
 
 // This contract is intended to be executed via the Profile proxy of a user (DSProxy) which owns the SCD CDP
 contract MigrationProxyActions is DSMath {
+    function swapSaiToDai(
+        address payable scdMcdMigration,    // Migration contract address
+        uint wad                            // Amount to swap
+    ) external {
+        GemLike sai = SaiTubLike(ScdMcdMigration(scdMcdMigration).tub()).sai();
+        GemLike dai = JoinLike(ScdMcdMigration(scdMcdMigration).daiJoin()).dai();
+        sai.transferFrom(msg.sender, address(this), wad);
+        if (sai.allowance(address(this), scdMcdMigration) < wad) {
+            sai.approve(scdMcdMigration, wad);
+        }
+        ScdMcdMigration(scdMcdMigration).swapSaiToDai(wad);
+        dai.transfer(msg.sender, wad);
+    }
+
+    function swapDaiToSai(
+        address payable scdMcdMigration,    // Migration contract address
+        uint wad                            // Amount to swap
+    ) external {
+        GemLike sai = SaiTubLike(ScdMcdMigration(scdMcdMigration).tub()).sai();
+        GemLike dai = JoinLike(ScdMcdMigration(scdMcdMigration).daiJoin()).dai();
+        dai.transferFrom(msg.sender, address(this), wad);
+        if (dai.allowance(address(this), scdMcdMigration) < wad) {
+            dai.approve(scdMcdMigration, wad);
+        }
+        ScdMcdMigration(scdMcdMigration).swapDaiToSai(wad);
+        sai.transfer(msg.sender, wad);
+    }
+
     function migrate(
         address payable scdMcdMigration,    // Migration contract address
         bytes32 cup,                        // SCD CDP Id to migrate
         address otc,                        // Otc address (only if gov fee will be paid with another token)
         address payGem,                     // Token address (only if gov fee will be paid with another token)
         uint maxPayAmt                      // Max amount of payGem to sell for govFee needed (only if gov fee will be paid with another token)
-    ) public returns (uint cdp) {
+    ) external returns (uint cdp) {
         SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));

@@ -173,23 +173,28 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
 
         tub.give(bytes32(uint(0x1)), address(proxy));
 
-        sai.approve(address(saiJoin), uint(-1));
-        sai.approve(address(migration), uint(-1));
-        dai.approve(address(migration), uint(-1));
-        gov.approve(address(proxy), uint(-1));
+        saiJoin.rely(address(migration));
     }
 
-    function migrate(address, bytes32, address, address, uint) public returns (uint cdp) {
+    function migrate(address, bytes32, address, address, uint) external returns (uint cdp) {
         bytes memory response = proxy.execute(migrationProxyActions, msg.data);
         assembly {
             cdp := mload(add(response, 0x20))
         }
     }
 
+    function swapSaiToDai(address, uint) external {
+        proxy.execute(migrationProxyActions, msg.data);
+    }
+
+    function swapDaiToSai(address, uint) external {
+        proxy.execute(migrationProxyActions, msg.data);
+    }
+
     function testSwapSaiToDai() public {
-        saiJoin.rely(address(migration));
         assertEq(sai.balanceOf(address(this)), 110 ether);
         assertEq(dai.balanceOf(address(this)), 0);
+        sai.approve(address(migration), 100 ether);
         migration.swapSaiToDai(100 ether);
         assertEq(sai.balanceOf(address(this)), 10 ether);
         assertEq(dai.balanceOf(address(this)), 100 ether);
@@ -198,13 +203,39 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(art, 100 ether);
     }
 
+    function testSwapSaiToDaiProxy() public {
+        assertEq(sai.balanceOf(address(this)), 110 ether);
+        assertEq(dai.balanceOf(address(this)), 0);
+        sai.approve(address(proxy), 100 ether);
+        this.swapSaiToDai(address(migration), 100 ether);
+        assertEq(sai.balanceOf(address(this)), 10 ether);
+        assertEq(dai.balanceOf(address(this)), 100 ether);
+        (uint ink, uint art) = vat.urns("SAI", address(migration));
+        assertEq(ink, 100 ether);
+        assertEq(art, 100 ether);
+    }
+
     function testFailSwapSaiToDaiAuth() public {
+        sai.approve(address(migration), 100 ether);
+        saiJoin.deny(address(migration));
         migration.swapSaiToDai(100 ether);
     }
 
     function testSwapDaiToSai() public {
         testSwapSaiToDai();
+        dai.approve(address(migration), 60 ether);
         migration.swapDaiToSai(60 ether);
+        assertEq(sai.balanceOf(address(this)), 70 ether);
+        assertEq(dai.balanceOf(address(this)), 40 ether);
+        (uint ink, uint art) = vat.urns("SAI", address(migration));
+        assertEq(ink, 40 ether);
+        assertEq(art, 40 ether);
+    }
+
+    function testSwapDaiToSaiProxy() public {
+        testSwapSaiToDai();
+        dai.approve(address(proxy), 60 ether);
+        this.swapDaiToSai(address(migration), 60 ether);
         assertEq(sai.balanceOf(address(this)), 70 ether);
         assertEq(dai.balanceOf(address(this)), 40 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
@@ -223,6 +254,8 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         (ink, art) = vat.urns("SAI", address(migration));
         assertEq(ink, 100 ether);
         assertEq(art, 100 ether);
+        (bytes32 val,) = tub.pep().peek();
+        gov.approve(address(proxy), wdiv(tub.rap(cup), uint(val)));
         uint cdp = this.migrate(
             address(migration),
             cup,
