@@ -10,6 +10,12 @@ import {Spotter} from "dss/spot.sol";
 import {DSProxy, DSProxyFactory} from "ds-proxy/proxy.sol";
 import {WETH9_} from "ds-weth/weth9.sol";
 
+import {
+    GemFab, VoxFab, DevVoxFab, TubFab, DevTubFab, TapFab,
+    TopFab, DevTopFab, MomFab, DadFab, DevDadFab, DaiFab,
+    DSValue, DSRoles, DevTub, SaiTap, SaiMom
+} from "sai/sai.t.base.sol";
+
 import {ScdMcdMigration} from "./ScdMcdMigration.sol";
 import {MigrationProxyActions} from "./MigrationProxyActions.sol";
 
@@ -17,86 +23,6 @@ contract MockSaiPip {
     function peek() public pure returns (bytes32 val, bool zzz) {
         val = bytes32(uint(1 ether)); // 1 DAI = 1 SAI
         zzz = true;
-    }
-}
-
-contract MockPep {
-    function peek() public pure returns (bytes32 val, bool zzz) {
-        val = bytes32(uint(300 ether)); // 300 SAI = 1 MKR
-        zzz = true;
-    }
-}
-
-contract MockSaiTub is DSMath {
-    DSToken     public  sai;
-    DSToken     public  skr;
-    WETH9_      public  gem;
-    DSToken     public  gov;
-    MockPep     public  pep;
-    address     cupLad;
-    uint        cupArt;
-
-    constructor(WETH9_ gem_, DSToken skr_, DSToken gov_, DSToken sai_) public {
-        gem = gem_;
-        skr = skr_;
-        gov = gov_;
-        sai = sai_;
-        pep = new MockPep();
-        cupLad = msg.sender;
-        cupArt = 99.999999999999999999 ether;
-    }
-
-    function cups(bytes32) public view returns (address lad_, uint ink_, uint art_, uint) {
-        lad_ = cupLad;
-        ink_ = skr.balanceOf(address(this));
-        art_ = cupArt;
-    }
-
-    function bid(uint wad) public view returns (uint) {
-        return rmul(wad, per());
-    }
-
-    function lad(bytes32 cup) public view returns (address lad_) {
-        (lad_,,,) = cups(cup);
-    }
-
-    function ink(bytes32 cup) public view returns (uint ink_) {
-        (, ink_,,) = cups(cup);
-    }
-
-    function tab(bytes32 cup) public returns (uint art_) {
-        cupArt = cupArt; // To force is not a read function and avoid warning
-        (,, art_,) = cups(cup);
-    }
-
-    function rap(bytes32) public returns (uint) {
-        cupArt = cupArt; // To force is not a read function and avoid warning
-        return uint(5 ether); // Random governance + stability fees accumulated
-    }
-
-    function per() public view returns (uint ray) {
-        return skr.totalSupply() == 0 ? RAY : rdiv(gem.balanceOf(address(this)), skr.totalSupply());
-    }
-
-    function exit(uint wad) public {
-        gem.transfer(msg.sender, rmul(wad, per()));
-        skr.burn(msg.sender, wad);
-    }
-
-    function shut(bytes32 cup) public {
-        require(cupLad == msg.sender, "");
-        uint owe = rap(cup);
-        sai.burn(msg.sender, tab(cup));
-        (bytes32 val,) = pep.peek();
-        gov.move(msg.sender, address(123), wdiv(owe, uint(val)));
-        skr.push(msg.sender, ink(cup));
-        cupLad = address(0);
-        cupArt = 0;
-    }
-
-    function give(bytes32, address guy) public {
-        require(cupLad == msg.sender, "");
-        cupLad = guy;
     }
 }
 
@@ -116,11 +42,9 @@ contract MockOtc is DSMath {
 }
 
 contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
+    DevTub              tub;
     DSToken             sai;
     DSToken             skr;
-    WETH9_              gem;
-    DSToken             gov;
-    MockSaiTub          tub;
     ScdMcdMigration     migration;
     DssCdpManager       manager;
     AuthGemJoin         saiJoin;
@@ -128,28 +52,25 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     DSProxy             proxy;
     address             migrationProxyActions;
     MockOtc             otc;
+    bytes32             cup;
+    bytes32             cup2;
 
     function setUp() public {
         super.setUp();
 
+        // Deploy MCD
         deployKeepAuth();
 
-        weth.deposit.value(21 ether)();
-        skr = new DSToken("SKR");
-        skr.mint(20 ether);
-        gov = new DSToken("MKR");
-        gov.mint(25 ether);
-        sai = new DSToken("SAI");
-        sai.mint(110 ether);
+        // Deploy SCD
+        deploySai();
 
-        tub = new MockSaiTub(weth, skr, gov, sai);
+        // Deploy Fake OTC
         otc = new MockOtc();
-        weth.transfer(address(tub), 21 ether);
-        skr.transfer(address(tub), 20 ether);
-        gov.transfer(address(otc), 5 ether);
-        skr.setOwner(address(tub));
-        sai.setOwner(address(tub));
 
+        // Give 1 MKR to Fake OTC
+        gov.transfer(address(otc), 1 ether);
+
+        // Create CDP Manager
         manager = new DssCdpManager(address(vat));
 
         // Create SAI collateral
@@ -159,6 +80,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         spotter.poke("SAI");
         this.file(address(vat), bytes32("SAI"), bytes32("line"), 10000 * 10 ** 45);
 
+        // Create Migration Contract
         migration = new ScdMcdMigration(
             address(tub),
             address(manager),
@@ -167,13 +89,77 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
             address(daiJoin)
         );
 
+        // Create Proxy Factory, proxy and migration proxy actions
         DSProxyFactory factory = new DSProxyFactory();
         proxy = DSProxy(factory.build());
         migrationProxyActions = address(new MigrationProxyActions());
 
-        tub.give(bytes32(uint(0x1)), address(proxy));
+        // Deposit, approve and join 20 ETH == 20 SKR
+        weth.deposit.value(20 ether)();
+        weth.approve(address(tub), 20 ether);
+        tub.join(20 ether);
 
+        // Generate CDP for migrate
+        cup = tub.open();
+        tub.lock(cup, 1 ether);
+        tub.draw(cup, 99.999999999999999999 ether);
+        tub.give(cup, address(proxy));
+
+        // Generate some extra SAI in another CDP
+        cup2 = tub.open();
+        tub.lock(cup2, 1 ether);
+        tub.draw(cup2, 0.000000000000000001 ether);
+
+        // Give access to the special authed SAI collateral to Migration contract
         saiJoin.rely(address(migration));
+    }
+
+    function deploySai() public {
+        GemFab gemFab = new GemFab();
+        DevVoxFab voxFab = new DevVoxFab();
+        DevTubFab tubFab = new DevTubFab();
+        TapFab tapFab = new TapFab();
+        DevTopFab topFab = new DevTopFab();
+        MomFab momFab = new MomFab();
+        DevDadFab dadFab = new DevDadFab();
+
+        DaiFab daiFab = new DaiFab(gemFab, VoxFab(address(voxFab)), TubFab(address(tubFab)), tapFab, TopFab(address(topFab)), momFab, DadFab(address(dadFab)));
+
+        daiFab.makeTokens();
+        DSValue pep = new DSValue();
+        daiFab.makeVoxTub(ERC20(address(weth)), gov, pipETH, pep, address(123));
+        daiFab.makeTapTop();
+        daiFab.configParams();
+        daiFab.verifyParams();
+        DSRoles authority = new DSRoles();
+        authority.setRootUser(address(this), true);
+        daiFab.configAuth(authority);
+
+        sai = DSToken(daiFab.sai());
+        skr = DSToken(daiFab.skr());
+        tub = DevTub(address(daiFab.tub()));
+
+        sai.approve(address(tub));
+        skr.approve(address(tub));
+        weth.approve(address(tub), uint(-1));
+        gov.approve(address(tub));
+
+        SaiTap tap = SaiTap(daiFab.tap());
+
+        sai.approve(address(tap));
+        skr.approve(address(tap));
+
+        pep.poke(bytes32(uint(300 ether)));
+
+        SaiMom mom = SaiMom(daiFab.mom());
+
+        mom.setCap(10000 ether);
+        mom.setAxe(10 ** 27);
+        mom.setMat(10 ** 27);
+        mom.setTax(10 ** 27);
+        mom.setFee(1.000001 * 10 ** 27);
+        mom.setTubGap(1 ether);
+        mom.setTapGap(1 ether);
     }
 
     function migrate(address, bytes32, address, address, uint) external returns (uint cdp) {
@@ -192,11 +178,11 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     }
 
     function testSwapSaiToDai() public {
-        assertEq(sai.balanceOf(address(this)), 110 ether);
+        assertEq(sai.balanceOf(address(this)), 100 ether);
         assertEq(dai.balanceOf(address(this)), 0);
         sai.approve(address(migration), 100 ether);
         migration.swapSaiToDai(100 ether);
-        assertEq(sai.balanceOf(address(this)), 10 ether);
+        assertEq(sai.balanceOf(address(this)), 0 ether);
         assertEq(dai.balanceOf(address(this)), 100 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
         assertEq(ink, 100 ether);
@@ -204,11 +190,11 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     }
 
     function testSwapSaiToDaiProxy() public {
-        assertEq(sai.balanceOf(address(this)), 110 ether);
+        assertEq(sai.balanceOf(address(this)), 100 ether);
         assertEq(dai.balanceOf(address(this)), 0);
         sai.approve(address(proxy), 100 ether);
         this.swapSaiToDai(address(migration), 100 ether);
-        assertEq(sai.balanceOf(address(this)), 10 ether);
+        assertEq(sai.balanceOf(address(this)), 0 ether);
         assertEq(dai.balanceOf(address(this)), 100 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
         assertEq(ink, 100 ether);
@@ -225,7 +211,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         testSwapSaiToDai();
         dai.approve(address(migration), 60 ether);
         migration.swapDaiToSai(60 ether);
-        assertEq(sai.balanceOf(address(this)), 70 ether);
+        assertEq(sai.balanceOf(address(this)), 60 ether);
         assertEq(dai.balanceOf(address(this)), 40 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
         assertEq(ink, 40 ether);
@@ -236,7 +222,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         testSwapSaiToDai();
         dai.approve(address(proxy), 60 ether);
         this.swapDaiToSai(address(migration), 60 ether);
-        assertEq(sai.balanceOf(address(this)), 70 ether);
+        assertEq(sai.balanceOf(address(this)), 60 ether);
         assertEq(dai.balanceOf(address(this)), 40 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
         assertEq(ink, 40 ether);
@@ -247,13 +233,13 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         testSwapSaiToDai();
         // After testSwapSaiToDai() migration contract holds a MCD CDP of 100 SAI.
         // As liquidation ratio is 0.00...001%, 99.99...99 SAI max can be used
-        bytes32 cup = bytes32(uint(1));
         (,uint ink, uint art,) = tub.cups(cup);
-        assertEq(ink, 20 ether); // 21 ETH = 20 SKR
+        assertEq(ink, 1 ether);
         assertEq(art, 99.999999999999999999 ether);
         (ink, art) = vat.urns("SAI", address(migration));
         assertEq(ink, 100 ether);
         assertEq(art, 100 ether);
+        hevm.warp(3);
         (bytes32 val,) = tub.pep().peek();
         gov.approve(address(proxy), wdiv(tub.rap(cup), uint(val)));
         uint cdp = this.migrate(
@@ -271,15 +257,16 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(art, 1);
         address urn = manager.urns(cdp);
         (ink, art) = vat.urns("ETH", urn);
-        assertEq(ink, 21 ether);
+        assertEq(ink, 1 ether);
         assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
     }
 
     function testMigrateCDPBuyMKR() public {
         testSwapSaiToDai();
-        bytes32 cup = bytes32(uint(1));
         sai.approve(address(proxy), 6 ether);
         (bytes32 val,) = tub.pep().peek();
+        hevm.warp(3);
+        tub.draw(cup2, 300000300000000); // Necessary DAI to purchase MKR
         uint cdp = this.migrate(
             address(migration),
             cup,
@@ -295,15 +282,16 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(art, 1);
         address urn = manager.urns(cdp);
         (ink, art) = vat.urns("ETH", urn);
-        assertEq(ink, 21 ether);
+        assertEq(ink, 1 ether);
         assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
     }
 
     function testFailMigrateCDPBuyMKRExceedsMax() public {
         testSwapSaiToDai();
-        bytes32 cup = bytes32(uint(1));
         sai.approve(address(proxy), 6 ether);
         (bytes32 val,) = tub.pep().peek();
+        hevm.warp(3);
+        tub.draw(cup2, 300000300000000); // Necessary DAI to purchase MKR
         this.migrate(
             address(migration),
             cup,

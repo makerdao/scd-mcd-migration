@@ -4,3 +4,7 @@
 [submodule "lib/dss-cdp-manager"]
 	path = lib/dss-cdp-manager
 	url = https://github.com/makerdao/dss-cdp-manager
+[submodule "lib/sai"]
+	path = lib/sai
+	url = https://github.com/makerdao/sai
+	branch = solc-0.5
