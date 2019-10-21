@@ -21,6 +21,7 @@ contract SaiTubLike {
     function ink(bytes32) public view returns (uint);
     function tab(bytes32) public returns (uint);
     function rap(bytes32) public returns (uint);
+    function draw(bytes32, uint) public;
     function shut(bytes32) public;
     function exit(uint) public;
     function give(bytes32, address) public;

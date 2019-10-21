@@ -162,7 +162,20 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         mom.setTapGap(1 ether);
     }
 
-    function migrate(address, bytes32, address, address, uint) external returns (uint cdp) {
+    function migrate(address, bytes32) external returns (uint cdp) {
+        bytes memory response = proxy.execute(migrationProxyActions, msg.data);
+        assembly {
+            cdp := mload(add(response, 0x20))
+        }
+    }
+
+    function migratePayFeeWithGem(address, bytes32, address, address, uint) external returns (uint cdp) {
+        bytes memory response = proxy.execute(migrationProxyActions, msg.data);
+        assembly {
+            cdp := mload(add(response, 0x20))
+        }
+    }
+    function migratePayFeeWithDebt(address, bytes32, address, uint) external returns (uint cdp) {
         bytes memory response = proxy.execute(migrationProxyActions, msg.data);
         assembly {
             cdp := mload(add(response, 0x20))
@@ -177,11 +190,15 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         proxy.execute(migrationProxyActions, msg.data);
     }
 
+    function _swapSaiToDai(uint amount) internal {
+        sai.approve(address(migration), amount);
+        migration.swapSaiToDai(amount);
+    }
+
     function testSwapSaiToDai() public {
         assertEq(sai.balanceOf(address(this)), 100 ether);
         assertEq(dai.balanceOf(address(this)), 0);
-        sai.approve(address(migration), 100 ether);
-        migration.swapSaiToDai(100 ether);
+        _swapSaiToDai(100 ether);
         assertEq(sai.balanceOf(address(this)), 0 ether);
         assertEq(dai.balanceOf(address(this)), 100 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
@@ -208,7 +225,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     }
 
     function testSwapDaiToSai() public {
-        testSwapSaiToDai();
+        _swapSaiToDai(100 ether);
         dai.approve(address(migration), 60 ether);
         migration.swapDaiToSai(60 ether);
         assertEq(sai.balanceOf(address(this)), 60 ether);
@@ -219,7 +236,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     }
 
     function testSwapDaiToSaiProxy() public {
-        testSwapSaiToDai();
+        _swapSaiToDai(100 ether);
         dai.approve(address(proxy), 60 ether);
         this.swapDaiToSai(address(migration), 60 ether);
         assertEq(sai.balanceOf(address(this)), 60 ether);
@@ -229,8 +246,8 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(art, 40 ether);
     }
 
-    function testMigrateCDP() public {
-        testSwapSaiToDai();
+    function testMigrate() public {
+        _swapSaiToDai(100 ether);
         // After testSwapSaiToDai() migration contract holds a MCD CDP of 100 SAI.
         // As liquidation ratio is 0.00...001%, 99.99...99 SAI max can be used
         (,uint ink, uint art,) = tub.cups(cup);
@@ -244,10 +261,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         gov.approve(address(proxy), wdiv(tub.rap(cup), uint(val)));
         uint cdp = this.migrate(
             address(migration),
-            cup,
-            address(0),
-            address(0),
-            0
+            cup
         );
         (, ink, art,) = tub.cups(cup);
         assertEq(ink, 0);
@@ -261,13 +275,13 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
     }
 
-    function testMigrateCDPBuyMKR() public {
-        testSwapSaiToDai();
+    function testMigratePayFeeWithGem() public {
+        _swapSaiToDai(100 ether);
         sai.approve(address(proxy), 6 ether);
         (bytes32 val,) = tub.pep().peek();
         hevm.warp(3);
         tub.draw(cup2, 300000300000000); // Necessary DAI to purchase MKR
-        uint cdp = this.migrate(
+        uint cdp = this.migratePayFeeWithGem(
             address(migration),
             cup,
             address(otc),
@@ -286,18 +300,54 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
     }
 
-    function testFailMigrateCDPBuyMKRExceedsMax() public {
-        testSwapSaiToDai();
+    function testFailMigratePayFeeWithGemExceedsMax() public {
+        _swapSaiToDai(100 ether);
         sai.approve(address(proxy), 6 ether);
         (bytes32 val,) = tub.pep().peek();
         hevm.warp(3);
         tub.draw(cup2, 300000300000000); // Necessary DAI to purchase MKR
-        this.migrate(
+        this.migratePayFeeWithGem(
             address(migration),
             cup,
             address(otc),
             address(sai),
             otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)) - 1)
+        );
+    }
+
+    function testMigratePayFeeWithDebt() public {
+        tub.draw(cup2, 300000300000300); // Necessary DAI to purchase MKR
+        _swapSaiToDai(100 ether + 300000300000300);
+        (bytes32 val,) = tub.pep().peek();
+        hevm.warp(3);
+        uint cdp = this.migratePayFeeWithDebt(
+            address(migration),
+            cup,
+            address(otc),
+            otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)) + 1)
+        );
+        (, uint ink, uint art,) = tub.cups(cup);
+        assertEq(ink, 0);
+        assertEq(art, 0);
+        (ink, art) = vat.urns("SAI", address(migration));
+        assertEq(ink, 1);
+        assertEq(art, 1);
+        address urn = manager.urns(cdp);
+        (ink, art) = vat.urns("ETH", urn);
+        assertEq(ink, 1 ether);
+        assertEq(art, 99.999999999999999999 ether + 300000300000300 + 1); // the extra wei added for avoiding rounding issues
+    }
+
+    function testFailMigratePayFeeWithDebt() public {
+        tub.draw(cup2, 300000300000300); // Necessary DAI to purchase MKR
+        _swapSaiToDai(100 ether + 300000300000300);
+        (bytes32 val,) = tub.pep().peek();
+        hevm.warp(3);
+        this.migratePayFeeWithDebt(
+            address(migration),
+            cup,
+            address(otc),
+            otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)))
         );
     }
 }
