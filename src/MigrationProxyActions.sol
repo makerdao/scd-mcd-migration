@@ -2,8 +2,8 @@ pragma solidity 0.5.11;
 
 import "ds-math/math.sol";
 
-import { SaiTubLike, OtcLike } from "./Interfaces.sol";
-import "./ScdMcdMigration.sol";
+import { GemLike, JoinLike, OtcLike, SaiTubLike } from "./Interfaces.sol";
+import { ScdMcdMigration } from "./ScdMcdMigration.sol";
 
 // This contract is intended to be executed via the Profile proxy of a user (DSProxy) which owns the SCD CDP
 contract MigrationProxyActions is DSMath {

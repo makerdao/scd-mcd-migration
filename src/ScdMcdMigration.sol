@@ -1,6 +1,6 @@
 pragma solidity 0.5.11;
 
-import {SaiTubLike, ManagerLike, JoinLike, GemLike, VatLike} from "./Interfaces.sol";
+import { JoinLike, ManagerLike, SaiTubLike, VatLike } from "./Interfaces.sol";
 
 contract ScdMcdMigration {
     SaiTubLike                  public tub;
@@ -19,7 +19,7 @@ contract ScdMcdMigration {
     ) public {
         tub = SaiTubLike(tub_);
         cdpManager = ManagerLike(cdpManager_);
-        vat = VatLike(ManagerLike(cdpManager).vat());
+        vat = VatLike(cdpManager.vat());
         saiJoin = JoinLike(saiJoin_);
         wethJoin = JoinLike(wethJoin_);
         daiJoin = JoinLike(daiJoin_);
@@ -64,7 +64,7 @@ contract ScdMcdMigration {
         // Join the SAI wad amount to the `vat`:
         saiJoin.join(address(this), wad);
         // Lock the SAI wad amount to the CDP and generate the same wad amount of DAI
-        vat.frob(JoinLike(saiJoin).ilk(), address(this), address(this), address(this), toInt(wad), toInt(wad));
+        vat.frob(saiJoin.ilk(), address(this), address(this), address(this), toInt(wad), toInt(wad));
         // Send DAI wad amount as a ERC20 token to the user's wallet
         daiJoin.exit(msg.sender, wad);
     }
@@ -80,7 +80,7 @@ contract ScdMcdMigration {
         // Join the DAI wad amount to the vat:
         daiJoin.join(address(this), wad);
         // Payback the DAI wad amount and unlocks the same value of SAI collateral
-        vat.frob(JoinLike(saiJoin).ilk(), address(this), address(this), address(this), -toInt(wad), -toInt(wad));
+        vat.frob(saiJoin.ilk(), address(this), address(this), address(this), -toInt(wad), -toInt(wad));
         // Send SAI wad amount as a ERC20 token to the user's wallet
         saiJoin.exit(msg.sender, wad);
     }
@@ -99,7 +99,7 @@ contract ScdMcdMigration {
         // This is not actually a problem as this ilk will only be accessed by this migration contract,
         // which will make sure to have the amounts balanced out at the end of the execution.
         vat.frob(
-            bytes32(JoinLike(saiJoin).ilk()),
+            bytes32(saiJoin.ilk()),
             address(this),
             address(this),
             address(this),
@@ -113,23 +113,23 @@ contract ScdMcdMigration {
         tub.exit(pethAmt);  // Converts PETH to WETH
 
         // Open future user's CDP in MCD
-        cdp = ManagerLike(cdpManager).open(JoinLike(wethJoin).ilk());
+        cdp = cdpManager.open(wethJoin.ilk());
 
         // Join WETH to Adapter
-        wethJoin.join(ManagerLike(cdpManager).urns(cdp), ethAmt);
+        wethJoin.join(cdpManager.urns(cdp), ethAmt);
 
         // Lock WETH in future user's CDP and generate debt to compensate the SAI used to paid the SCD CDP
-        (, uint rate,,,) = vat.ilks(JoinLike(wethJoin).ilk());
-        ManagerLike(cdpManager).frob(
+        (, uint rate,,,) = vat.ilks(wethJoin.ilk());
+        cdpManager.frob(
             cdp,
             toInt(ethAmt),
             toInt(mul(debtAmt, 10 ** 27) / rate + 1) // To avoid rounding issues we add an extra wei of debt
         );
         // Move DAI generated to migration contract (to recover the used funds)
-        ManagerLike(cdpManager).move(cdp, address(this), mul(debtAmt, 10 ** 27));
+        cdpManager.move(cdp, address(this), mul(debtAmt, 10 ** 27));
         // Re-balance MCD SAI migration contract's CDP
         vat.frob(
-            bytes32(JoinLike(saiJoin).ilk()),
+            bytes32(saiJoin.ilk()),
             address(this),
             address(this),
             address(this),
@@ -138,6 +138,6 @@ contract ScdMcdMigration {
         );
 
         // Set ownership of CDP to the user
-        ManagerLike(cdpManager).give(cdp, msg.sender);
+        cdpManager.give(cdp, msg.sender);
     }
 }

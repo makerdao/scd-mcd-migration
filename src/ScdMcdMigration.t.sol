@@ -3,12 +3,12 @@ pragma solidity 0.5.11;
 import "ds-token/token.sol";
 import "ds-math/math.sol";
 
-import {DssDeployTestBase} from "dss-deploy/DssDeploy.t.base.sol";
-import {AuthGemJoin} from "dss-deploy/join.sol";
-import {DssCdpManager} from "dss-cdp-manager/DssCdpManager.sol";
-import {Spotter} from "dss/spot.sol";
-import {DSProxy, DSProxyFactory} from "ds-proxy/proxy.sol";
-import {WETH9_} from "ds-weth/weth9.sol";
+import { DssDeployTestBase } from "dss-deploy/DssDeploy.t.base.sol";
+import { AuthGemJoin } from "dss-deploy/join.sol";
+import { DssCdpManager } from "dss-cdp-manager/DssCdpManager.sol";
+import { Spotter } from "dss/spot.sol";
+import { DSProxy, DSProxyFactory } from "ds-proxy/proxy.sol";
+import { WETH9_ } from "ds-weth/weth9.sol";
 
 import {
     GemFab, VoxFab, DevVoxFab, TubFab, DevTubFab, TapFab,
@@ -16,8 +16,8 @@ import {
     DSValue, DSRoles, DevTub, SaiTap, SaiMom
 } from "sai/sai.t.base.sol";
 
-import {ScdMcdMigration} from "./ScdMcdMigration.sol";
-import {MigrationProxyActions} from "./MigrationProxyActions.sol";
+import { ScdMcdMigration } from "./ScdMcdMigration.sol";
+import { MigrationProxyActions } from "./MigrationProxyActions.sol";
 
 contract MockSaiPip {
     function peek() public pure returns (bytes32 val, bool zzz) {
