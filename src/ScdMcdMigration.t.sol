@@ -102,7 +102,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         // Generate CDP for migrate
         cup = tub.open();
         tub.lock(cup, 1 ether);
-        tub.draw(cup, 99.999999999999999999 ether);
+        tub.draw(cup, 99.999999999999999999 ether); // 1 ETH = 300 DAI => 300.0....03 % collateralization
         tub.give(cup, address(proxy));
 
         // Generate some extra SAI in another CDP
@@ -175,7 +175,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
             cdp := mload(add(response, 0x20))
         }
     }
-    function migratePayFeeWithDebt(address, bytes32, address, uint) external returns (uint cdp) {
+    function migratePayFeeWithDebt(address, bytes32, address, uint, uint) external returns (uint cdp) {
         bytes memory response = proxy.execute(migrationProxyActions, msg.data);
         assembly {
             cdp := mload(add(response, 0x20))
@@ -320,11 +320,14 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         _swapSaiToDai(100 ether + 300000300000300);
         (bytes32 val,) = tub.pep().peek();
         hevm.warp(3);
+        // 300.0....03 % collateralization (prev migration)
+        // Restriction: needs to be higher than 299% after generating new debt
         uint cdp = this.migratePayFeeWithDebt(
             address(migration),
             cup,
             address(otc),
-            otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)) + 1)
+            otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)) + 1),
+            2.99 * 10 ** 27
         );
         (, uint ink, uint art,) = tub.cups(cup);
         assertEq(ink, 0);
@@ -338,7 +341,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(art, 99.999999999999999999 ether + 300000300000300 + 1); // the extra wei added for avoiding rounding issues
     }
 
-    function testFailMigratePayFeeWithDebt() public {
+    function testFailMigratePayFeeWithDebtMaxPay() public {
         tub.draw(cup2, 300000300000300); // Necessary DAI to purchase MKR
         _swapSaiToDai(100 ether + 300000300000300);
         (bytes32 val,) = tub.pep().peek();
@@ -347,7 +350,23 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
             address(migration),
             cup,
             address(otc),
-            otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)))
+            otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val))),
+            0 // Zero value to not interfere
+        );
+    }
+
+    function testFailMigratePayFeeWithDebtMinRatio() public {
+        tub.draw(cup2, 300000300000300); // Necessary DAI to purchase MKR
+        _swapSaiToDai(100 ether + 300000300000300);
+        hevm.warp(3);
+        // 300.0....03 % collateralization (prev migration)
+        // Restriction: needs to be higher than 300% after generating new debt (which fails)
+        this.migratePayFeeWithDebt(
+            address(migration),
+            cup,
+            address(otc),
+            999999999999 ether, // Big value to not interfere
+            3 * 10 ** 27
         );
     }
 }

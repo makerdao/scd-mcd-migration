@@ -41,10 +41,10 @@ contract MigrationProxyActions is DSMath {
     ) external returns (uint cdp) {
         SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
         // Get necessary MKR fee and move it to the migration contract
-        (bytes32 val, bool ok) = tub.pep().peek();
-        if (ok && uint(val) != 0) {
+        (uint val, bool ok) = tub.pep().peek();
+        if (ok && val != 0) {
             // Calculate necessary value of MKR to pay the govFee
-            uint govFee = wdiv(tub.rap(cup), uint(val));
+            uint govFee = wdiv(tub.rap(cup), val);
 
             // Get MKR from the user's wallet and transfer to Migration contract
             require(tub.gov().transferFrom(msg.sender, address(scdMcdMigration), govFee), "transfer-failed");
@@ -64,10 +64,10 @@ contract MigrationProxyActions is DSMath {
     ) external returns (uint cdp) {
         SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
         // Get necessary MKR fee and move it to the migration contract
-        (bytes32 val, bool ok) = tub.pep().peek();
-        if (ok && uint(val) != 0) {
+        (uint val, bool ok) = tub.pep().peek();
+        if (ok && val != 0) {
             // Calculate necessary value of MKR to pay the govFee
-            uint govFee = wdiv(tub.rap(cup), uint(val));
+            uint govFee = wdiv(tub.rap(cup), val);
 
             // Calculate how much payGem is needed for getting govFee value
             uint payAmt = OtcLike(otc).getPayAmount(payGem, address(tub.gov()), govFee);
@@ -90,18 +90,29 @@ contract MigrationProxyActions is DSMath {
         cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
     }
 
+    function _getRatio(
+        SaiTubLike tub,
+        bytes32 cup
+    ) internal returns (uint ratio) {
+        ratio = rdiv(
+                        rmul(tub.tag(), tub.ink(cup)),
+                        rmul(tub.vox().par(), tub.tab(cup))
+                    );
+    }
+
     function migratePayFeeWithDebt(
         address payable scdMcdMigration,    // Migration contract address
         bytes32 cup,                        // SCD CDP Id to migrate
         address otc,                        // Otc address
-        uint maxPayAmt                      // Max amount of SAI to generate to sell for govFee MKR needed
+        uint maxPayAmt,                     // Max amount of SAI to generate to sell for govFee MKR needed
+        uint minRatio                       // Min collateralization ratio after generating new debt (e.g. 180% = 1.8 RAY)
     ) external returns (uint cdp) {
         SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
         // Get necessary MKR fee and move it to the migration contract
-        (bytes32 val, bool ok) = tub.pep().peek();
-        if (ok && uint(val) != 0) {
+        (uint val, bool ok) = tub.pep().peek();
+        if (ok && val != 0) {
             // Calculate necessary value of MKR to pay the govFee
-            uint govFee = wdiv(tub.rap(cup), uint(val)) + 1; // 1 extra wei MKR to avoid any possible rounding issue after drawing new SAI
+            uint govFee = wdiv(tub.rap(cup), val) + 1; // 1 extra wei MKR to avoid any possible rounding issue after drawing new SAI
 
             // Calculate how much SAI is needed for getting govFee value
             uint payAmt = OtcLike(otc).getPayAmount(address(tub.sai()), address(tub.gov()), govFee);
@@ -109,6 +120,9 @@ contract MigrationProxyActions is DSMath {
             require(maxPayAmt >= payAmt, "maxPayAmt-exceeded");
             // Get payAmt of SAI from user's CDP
             tub.draw(cup, payAmt);
+
+            require(_getRatio(tub, cup) > minRatio, "minRatio-failed");
+
             // Set allowance, if necessary
             if (GemLike(address(tub.sai())).allowance(address(this), otc) < payAmt) {
                 GemLike(address(tub.sai())).approve(otc, payAmt);
@@ -116,7 +130,7 @@ contract MigrationProxyActions is DSMath {
             // Trade it for govFee amount of MKR
             OtcLike(otc).buyAllAmount(address(tub.gov()), govFee, address(tub.sai()), payAmt);
             // Transfer real needed govFee amount of MKR to Migration contract (it might leave some MKR dust in the proxy contract)
-            govFee = wdiv(tub.rap(cup), uint(val));
+            govFee = wdiv(tub.rap(cup), val);
             require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
         }
         // Transfer ownership of SCD CDP to the migration contract

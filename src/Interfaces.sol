@@ -8,7 +8,7 @@ contract GemLike {
 }
 
 contract ValueLike {
-    function peek() public returns (bytes32, bool);
+    function peek() public returns (uint, bool);
 }
 
 contract SaiTubLike {
@@ -17,14 +17,20 @@ contract SaiTubLike {
     function gov() public view returns (GemLike);
     function sai() public view returns (GemLike);
     function pep() public view returns (ValueLike);
+    function vox() public view returns (VoxLike);
     function bid(uint) public view returns (uint);
     function ink(bytes32) public view returns (uint);
+    function tag() public view returns (uint);
     function tab(bytes32) public returns (uint);
     function rap(bytes32) public returns (uint);
     function draw(bytes32, uint) public;
     function shut(bytes32) public;
     function exit(uint) public;
     function give(bytes32, address) public;
+}
+
+contract VoxLike {
+    function par() public returns (uint);
 }
 
 contract JoinLike {
