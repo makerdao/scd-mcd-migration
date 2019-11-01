@@ -8,7 +8,7 @@ import { ScdMcdMigration } from "./ScdMcdMigration.sol";
 // This contract is intended to be executed via the Profile proxy of a user (DSProxy) which owns the SCD CDP
 contract MigrationProxyActions is DSMath {
     function swapSaiToDai(
-        address payable scdMcdMigration,    // Migration contract address
+        address scdMcdMigration,            // Migration contract address
         uint wad                            // Amount to swap
     ) external {
         GemLike sai = SaiTubLike(ScdMcdMigration(scdMcdMigration).tub()).sai();
@@ -22,7 +22,7 @@ contract MigrationProxyActions is DSMath {
     }
 
     function swapDaiToSai(
-        address payable scdMcdMigration,    // Migration contract address
+        address scdMcdMigration,            // Migration contract address
         uint wad                            // Amount to swap
     ) external {
         GemLike sai = SaiTubLike(ScdMcdMigration(scdMcdMigration).tub()).sai();
@@ -36,7 +36,7 @@ contract MigrationProxyActions is DSMath {
     }
 
     function migrate(
-        address payable scdMcdMigration,    // Migration contract address
+        address scdMcdMigration,            // Migration contract address
         bytes32 cup                         // SCD CDP Id to migrate
     ) external returns (uint cdp) {
         SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
@@ -56,7 +56,7 @@ contract MigrationProxyActions is DSMath {
     }
 
     function migratePayFeeWithGem(
-        address payable scdMcdMigration,    // Migration contract address
+        address scdMcdMigration,            // Migration contract address
         bytes32 cup,                        // SCD CDP Id to migrate
         address otc,                        // Otc address
         address payGem,                     // Token address to be used for purchasing govFee MKR
@@ -101,7 +101,7 @@ contract MigrationProxyActions is DSMath {
     }
 
     function migratePayFeeWithDebt(
-        address payable scdMcdMigration,    // Migration contract address
+        address scdMcdMigration,            // Migration contract address
         bytes32 cup,                        // SCD CDP Id to migrate
         address otc,                        // Otc address
         uint maxPayAmt,                     // Max amount of SAI to generate to sell for govFee MKR needed
