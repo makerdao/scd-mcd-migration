@@ -47,7 +47,7 @@ contract MigrationProxyActions is DSMath {
             uint govFee = wdiv(tub.rap(cup), val);
 
             // Get MKR from the user's wallet and transfer to Migration contract
-            require(tub.gov().transferFrom(msg.sender, address(scdMcdMigration), govFee), "transfer-failed");
+            tub.gov().transferFrom(msg.sender, address(scdMcdMigration), govFee);
         }
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
@@ -82,7 +82,7 @@ contract MigrationProxyActions is DSMath {
             // Trade it for govFee amount of MKR
             OtcLike(otc).buyAllAmount(address(tub.gov()), govFee, payGem, payAmt);
             // Transfer govFee amount of MKR to Migration contract
-            require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
+            tub.gov().transfer(address(scdMcdMigration), govFee);
         }
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
@@ -131,7 +131,7 @@ contract MigrationProxyActions is DSMath {
             OtcLike(otc).buyAllAmount(address(tub.gov()), govFee, address(tub.sai()), payAmt);
             // Transfer real needed govFee amount of MKR to Migration contract (it might leave some MKR dust in the proxy contract)
             govFee = wdiv(tub.rap(cup), val);
-            require(tub.gov().transfer(address(scdMcdMigration), govFee), "transfer-failed");
+            tub.gov().transfer(address(scdMcdMigration), govFee);
         }
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
