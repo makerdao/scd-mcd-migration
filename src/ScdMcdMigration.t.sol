@@ -80,8 +80,14 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         // 10,000,000 * 10 ** 45 (10M SAI locked) <= 100 * 10 ** 50 (passes, just 100 wei can't be used)
         this.file(address(vat), bytes32("SAI"), bytes32("spot"), 10 ** 50);
 
-        // Set SAI debt ceiling
-        this.file(address(vat), bytes32("SAI"), bytes32("line"), 10000 * 10 ** 45);
+        // Total debt ceiling (100M)
+        this.file(address(vat), bytes32("Line"), 100000000 * 10 ** 45);
+
+        // Set ETH debt ceiling (100M)
+        this.file(address(vat), bytes32("ETH"), bytes32("line"), 100000000 * 10 ** 45);
+
+        // Set SAI debt ceiling (100M)
+        this.file(address(vat), bytes32("SAI"), bytes32("line"), 100000000 * 10 ** 45);
 
         // Create Migration Contract
         migration = new ScdMcdMigration(
@@ -98,20 +104,20 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         migrationProxyActions = address(new MigrationProxyActions());
 
         // Deposit, approve and join 20 ETH == 20 SKR
-        weth.deposit.value(20 ether)();
-        weth.approve(address(tub), 20 ether);
-        tub.join(20 ether);
+        weth.deposit.value(100001 ether)();
+        weth.approve(address(tub), 100001 ether);
+        tub.join(100001 ether);
 
         // Generate CDP for migrate
         cup = tub.open();
-        tub.lock(cup, 1 ether);
-        tub.draw(cup, 99.999999999999999999 ether); // 1 ETH = 300 DAI => 300.0....03 % collateralization
+        tub.lock(cup, 100000 ether);
+        tub.draw(cup, 9999999.999999999999999900 ether); // 1 ETH = 300 DAI => 300.0....03 % collateralization
         tub.give(cup, address(proxy));
 
         // Generate some extra SAI in another CDP
         cup2 = tub.open();
         tub.lock(cup2, 1 ether);
-        tub.draw(cup2, 0.000000000000000001 ether);
+        tub.draw(cup2, 100);
 
         // Give access to the special authed SAI collateral to Migration contract
         saiJoin.rely(address(migration));
@@ -164,11 +170,11 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
 
         SaiMom mom = SaiMom(daiFab.mom());
 
-        mom.setCap(10000 ether);
-        mom.setAxe(10 ** 27);
-        mom.setMat(10 ** 27);
-        mom.setTax(10 ** 27);
-        mom.setFee(1.000001 * 10 ** 27);
+        mom.setCap(100000000 ether); // 100M SAI
+        mom.setAxe(10 ** 27); // 0% liquidation penalty
+        mom.setMat(10 ** 27); // 100% liqudation ratio
+        mom.setTax(10 ** 27); // 0% stability fee
+        mom.setFee(1.000001 * 10 ** 27); // governance fee
         mom.setTubGap(1 ether);
         mom.setTapGap(1 ether);
     }
@@ -207,66 +213,66 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     }
 
     function testSwapSaiToDai() public {
-        assertEq(sai.balanceOf(address(this)), 100 ether);
+        assertEq(sai.balanceOf(address(this)), 10000000 ether);
         assertEq(dai.balanceOf(address(this)), 0);
-        _swapSaiToDai(100 ether);
+        _swapSaiToDai(10000000 ether);
         assertEq(sai.balanceOf(address(this)), 0 ether);
-        assertEq(dai.balanceOf(address(this)), 100 ether);
+        assertEq(dai.balanceOf(address(this)), 10000000 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
-        assertEq(ink, 100 ether);
-        assertEq(art, 100 ether);
+        assertEq(ink, 10000000 ether);
+        assertEq(art, 10000000 ether);
     }
 
     function testSwapSaiToDaiProxy() public {
-        assertEq(sai.balanceOf(address(this)), 100 ether);
+        assertEq(sai.balanceOf(address(this)), 10000000 ether);
         assertEq(dai.balanceOf(address(this)), 0);
-        sai.approve(address(proxy), 100 ether);
-        this.swapSaiToDai(address(migration), 100 ether);
+        sai.approve(address(proxy), 10000000 ether);
+        this.swapSaiToDai(address(migration), 10000000 ether);
         assertEq(sai.balanceOf(address(this)), 0 ether);
-        assertEq(dai.balanceOf(address(this)), 100 ether);
+        assertEq(dai.balanceOf(address(this)), 10000000 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
-        assertEq(ink, 100 ether);
-        assertEq(art, 100 ether);
+        assertEq(ink, 10000000 ether);
+        assertEq(art, 10000000 ether);
     }
 
     function testFailSwapSaiToDaiAuth() public {
-        sai.approve(address(migration), 100 ether);
+        sai.approve(address(migration), 10000000 ether);
         saiJoin.deny(address(migration));
-        migration.swapSaiToDai(100 ether);
+        migration.swapSaiToDai(10000000 ether);
     }
 
     function testSwapDaiToSai() public {
-        _swapSaiToDai(100 ether);
-        dai.approve(address(migration), 60 ether);
-        migration.swapDaiToSai(60 ether);
-        assertEq(sai.balanceOf(address(this)), 60 ether);
-        assertEq(dai.balanceOf(address(this)), 40 ether);
+        _swapSaiToDai(10000000 ether);
+        dai.approve(address(migration), 6000000 ether);
+        migration.swapDaiToSai(6000000 ether);
+        assertEq(sai.balanceOf(address(this)), 6000000 ether);
+        assertEq(dai.balanceOf(address(this)), 4000000 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
-        assertEq(ink, 40 ether);
-        assertEq(art, 40 ether);
+        assertEq(ink, 4000000 ether);
+        assertEq(art, 4000000 ether);
     }
 
     function testSwapDaiToSaiProxy() public {
-        _swapSaiToDai(100 ether);
-        dai.approve(address(proxy), 60 ether);
-        this.swapDaiToSai(address(migration), 60 ether);
-        assertEq(sai.balanceOf(address(this)), 60 ether);
-        assertEq(dai.balanceOf(address(this)), 40 ether);
+        _swapSaiToDai(10000000 ether);
+        dai.approve(address(proxy), 6000000 ether);
+        this.swapDaiToSai(address(migration), 6000000 ether);
+        assertEq(sai.balanceOf(address(this)), 6000000 ether);
+        assertEq(dai.balanceOf(address(this)), 4000000 ether);
         (uint ink, uint art) = vat.urns("SAI", address(migration));
-        assertEq(ink, 40 ether);
-        assertEq(art, 40 ether);
+        assertEq(ink, 4000000 ether);
+        assertEq(art, 4000000 ether);
     }
 
     function testMigrate() public {
-        _swapSaiToDai(100 ether);
-        // After testSwapSaiToDai() migration contract holds a MCD CDP of 100 SAI.
-        // As liquidation ratio is 0.00...001%, 99.99...99 SAI max can be used
+        _swapSaiToDai(10000000 ether);
+        // After testSwapSaiToDai() migration contract holds a MCD CDP of 10000000 SAI.
+        // As liquidation ratio is 0.00...100%, 99.99..900 SAI max can be used
         (,uint ink, uint art,) = tub.cups(cup);
-        assertEq(ink, 1 ether);
-        assertEq(art, 99.999999999999999999 ether);
+        assertEq(ink, 100000 ether);
+        assertEq(art, 9999999.999999999999999900 ether);
         (ink, art) = vat.urns("SAI", address(migration));
-        assertEq(ink, 100 ether);
-        assertEq(art, 100 ether);
+        assertEq(ink, 10000000 ether);
+        assertEq(art, 10000000 ether);
         hevm.warp(3);
         (bytes32 val,) = tub.pep().peek();
         gov.approve(address(proxy), wdiv(tub.rap(cup), uint(val)));
@@ -278,20 +284,20 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(ink, 0);
         assertEq(art, 0);
         (ink, art) = vat.urns("SAI", address(migration));
-        assertEq(ink, 1);
-        assertEq(art, 1);
+        assertEq(ink, 100); // Dust that can not be migrated
+        assertEq(art, 100);
         address urn = manager.urns(cdp);
         (ink, art) = vat.urns("ETH", urn);
-        assertEq(ink, 1 ether);
-        assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
+        assertEq(ink, 100000 ether);
+        assertEq(art, 9999999.999999999999999900 ether + 1); // the extra wei added for avoiding rounding issues
     }
 
     function testMigratePayFeeWithGem() public {
-        _swapSaiToDai(100 ether);
-        sai.approve(address(proxy), 6 ether);
+        _swapSaiToDai(10000000 ether);
         (bytes32 val,) = tub.pep().peek();
         hevm.warp(3);
-        tub.draw(cup2, 300000300000000); // Necessary DAI to purchase MKR
+        sai.approve(address(proxy), 30000030000009999900);
+        tub.draw(cup2, 30000030000009999900); // Necessary DAI to purchase MKR
         uint cdp = this.migratePayFeeWithGem(
             address(migration),
             cup,
@@ -303,20 +309,20 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(ink, 0);
         assertEq(art, 0);
         (ink, art) = vat.urns("SAI", address(migration));
-        assertEq(ink, 1);
-        assertEq(art, 1);
+        assertEq(ink, 100);
+        assertEq(art, 100);
         address urn = manager.urns(cdp);
         (ink, art) = vat.urns("ETH", urn);
-        assertEq(ink, 1 ether);
-        assertEq(art, 99.999999999999999999 ether + 1); // the extra wei added for avoiding rounding issues
+        assertEq(ink, 100000 ether);
+        assertEq(art, 9999999.999999999999999900 ether + 1); // the extra wei added for avoiding rounding issues
     }
 
     function testFailMigratePayFeeWithGemExceedsMax() public {
-        _swapSaiToDai(100 ether);
-        sai.approve(address(proxy), 6 ether);
+        _swapSaiToDai(10000000 ether);
         (bytes32 val,) = tub.pep().peek();
         hevm.warp(3);
-        tub.draw(cup2, 300000300000000); // Necessary DAI to purchase MKR
+        sai.approve(address(proxy), 30000030000009999900);
+        tub.draw(cup2, 30000030000009999900); // Necessary DAI to purchase MKR
         this.migratePayFeeWithGem(
             address(migration),
             cup,
@@ -327,8 +333,11 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     }
 
     function testMigratePayFeeWithDebt() public {
-        tub.draw(cup2, 300000300000300); // Necessary DAI to purchase MKR
-        _swapSaiToDai(100 ether + 300000300000300);
+        // Debt fee: 30000030000009999900 wei SAI
+        // + 300 extra necessary wei SAI as 1 extra MKR is being bought to avoid rounding issues
+        // + 1 extra necessary wei SAI, as now we are exchanging a bit more than 100M SAI, then the remaining ammount needs to be over 100 (1 extra wei is enough)
+        tub.draw(cup2, 30000030000009999900 + 300 + 1);
+        _swapSaiToDai(10000000 ether + 30000030000009999900 + 300 + 1);
         (bytes32 val,) = tub.pep().peek();
         hevm.warp(3);
         // 300.0....03 % collateralization (prev migration)
@@ -344,17 +353,17 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         assertEq(ink, 0);
         assertEq(art, 0);
         (ink, art) = vat.urns("SAI", address(migration));
-        assertEq(ink, 1);
-        assertEq(art, 1);
+        assertEq(ink, 101);
+        assertEq(art, 101);
         address urn = manager.urns(cdp);
         (ink, art) = vat.urns("ETH", urn);
-        assertEq(ink, 1 ether);
-        assertEq(art, 99.999999999999999999 ether + 300000300000300 + 1); // the extra wei added for avoiding rounding issues
+        assertEq(ink, 100000 ether);
+        assertEq(art, 9999999.999999999999999900 ether + 30000030000009999900 + 300 + 1); // the extra wei added for avoiding rounding issues
     }
 
     function testFailMigratePayFeeWithDebtMaxPay() public {
-        tub.draw(cup2, 300000300000300); // Necessary DAI to purchase MKR
-        _swapSaiToDai(100 ether + 300000300000300);
+        tub.draw(cup2, 30000030000009999900 + 300 + 1); // Necessary DAI to purchase MKR
+        _swapSaiToDai(10000000 ether + 30000030000009999900 + 300 + 1);
         (bytes32 val,) = tub.pep().peek();
         hevm.warp(3);
         this.migratePayFeeWithDebt(
@@ -367,8 +376,8 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
     }
 
     function testFailMigratePayFeeWithDebtMinRatio() public {
-        tub.draw(cup2, 300000300000300); // Necessary DAI to purchase MKR
-        _swapSaiToDai(100 ether + 300000300000300);
+        tub.draw(cup2, 30000030000009999900 + 300 + 1); // Necessary DAI to purchase MKR
+        _swapSaiToDai(10000000 ether + 30000030000009999900 + 300 + 1);
         hevm.warp(3);
         // 300.0....03 % collateralization (prev migration)
         // Restriction: needs to be higher than 300% after generating new debt (which fails)
