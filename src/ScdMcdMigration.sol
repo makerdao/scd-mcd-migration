@@ -113,7 +113,7 @@ contract ScdMcdMigration {
         tub.exit(pethAmt);  // Converts PETH to WETH
 
         // Open future user's CDP in MCD
-        cdp = cdpManager.open(wethJoin.ilk());
+        cdp = cdpManager.open(wethJoin.ilk(), address(this));
 
         // Join WETH to Adapter
         wethJoin.join(cdpManager.urns(cdp), ethAmt);
