@@ -1,14 +1,12 @@
 pragma solidity 0.5.11;
 
+import { SaiDaiMigration } from "./SaiDaiMigration.sol";
 import { JoinLike, ManagerLike, SaiTubLike, VatLike } from "./Interfaces.sol";
 
-contract ScdMcdMigration {
+contract ScdMcdMigration is SaiDaiMigration {
     SaiTubLike                  public tub;
-    VatLike                     public vat;
     ManagerLike                 public cdpManager;
-    JoinLike                    public saiJoin;
     JoinLike                    public wethJoin;
-    JoinLike                    public daiJoin;
 
     constructor(
         address tub_,           // SCD tub contract address
@@ -16,13 +14,10 @@ contract ScdMcdMigration {
         address saiJoin_,       // MCD SAI collateral adapter contract address
         address wethJoin_,      // MCD ETH collateral adapter contract address
         address daiJoin_        // MCD DAI adapter contract address
-    ) public {
+    ) SaiDaiMigration(saiJoin_, daiJoin_, ManagerLike(cdpManager_).vat()) public {
         tub = SaiTubLike(tub_);
         cdpManager = ManagerLike(cdpManager_);
-        vat = VatLike(cdpManager.vat());
-        saiJoin = JoinLike(saiJoin_);
         wethJoin = JoinLike(wethJoin_);
-        daiJoin = JoinLike(daiJoin_);
 
         require(wethJoin.gem() == tub.gem(), "non-matching-weth");
         require(saiJoin.gem() == tub.sai(), "non-matching-sai");
@@ -30,10 +25,7 @@ contract ScdMcdMigration {
         tub.gov().approve(address(tub), uint(-1));
         tub.skr().approve(address(tub), uint(-1));
         tub.sai().approve(address(tub), uint(-1));
-        tub.sai().approve(address(saiJoin), uint(-1));
         wethJoin.gem().approve(address(wethJoin), uint(-1));
-        daiJoin.dai().approve(address(daiJoin), uint(-1));
-        vat.hope(address(daiJoin));
     }
 
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -46,43 +38,6 @@ contract ScdMcdMigration {
 
     function mul(uint x, uint y) internal pure returns (uint z) {
         require(y == 0 || (z = x * y) / y == x, "mul-overflow");
-    }
-
-    function toInt(uint x) internal pure returns (int y) {
-        y = int(x);
-        require(y >= 0, "int-overflow");
-    }
-
-    // Function to swap SAI to DAI
-    // This function is to be used by users that want to get new DAI in exchange of old one (aka SAI)
-    // wad amount has to be <= the value pending to reach the debt ceiling (the minimum between general and ilk one)
-    function swapSaiToDai(
-        uint wad
-    ) external {
-        // Get wad amount of SAI from user's wallet:
-        saiJoin.gem().transferFrom(msg.sender, address(this), wad);
-        // Join the SAI wad amount to the `vat`:
-        saiJoin.join(address(this), wad);
-        // Lock the SAI wad amount to the CDP and generate the same wad amount of DAI
-        vat.frob(saiJoin.ilk(), address(this), address(this), address(this), toInt(wad), toInt(wad));
-        // Send DAI wad amount as a ERC20 token to the user's wallet
-        daiJoin.exit(msg.sender, wad);
-    }
-
-    // Function to swap DAI to SAI
-    // This function is to be used by users that want to get SAI in exchange of DAI
-    // wad amount has to be <= the amount of SAI locked (and DAI generated) in the migration contract SAI CDP
-    function swapDaiToSai(
-        uint wad
-    ) external {
-        // Get wad amount of DAI from user's wallet:
-        daiJoin.dai().transferFrom(msg.sender, address(this), wad);
-        // Join the DAI wad amount to the vat:
-        daiJoin.join(address(this), wad);
-        // Payback the DAI wad amount and unlocks the same value of SAI collateral
-        vat.frob(saiJoin.ilk(), address(this), address(this), address(this), -toInt(wad), -toInt(wad));
-        // Send SAI wad amount as a ERC20 token to the user's wallet
-        saiJoin.exit(msg.sender, wad);
     }
 
     // Function to migrate a SCD CDP to MCD one (needs to be used via a proxy so the code can be kept simpler). Check MigrationProxyActions.sol code for usage.
