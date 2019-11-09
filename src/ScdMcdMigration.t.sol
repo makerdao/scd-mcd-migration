@@ -19,6 +19,13 @@ import {
 import { ScdMcdMigration } from "./ScdMcdMigration.sol";
 import { MigrationProxyActions } from "./MigrationProxyActions.sol";
 
+contract MockSaiPip {
+    function peek() public pure returns (bytes32 val, bool zzz) {
+        val = bytes32(uint(1 ether)); // 1 DAI = 1 SAI
+        zzz = true;
+    }
+}
+
 contract MockOtc is DSMath {
     function getPayAmount(address payGem, address buyGem, uint buyAmt) public pure returns (uint payAmt) {
         payGem;
@@ -68,7 +75,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
 
         // Create SAI collateral
         saiJoin = new AuthGemJoin(address(vat), "SAI", address(sai));
-        dssDeploy.deployCollateral("SAI", address(saiJoin), address(0));
+        dssDeploy.deployCollateral("SAI", address(saiJoin), address(new MockSaiPip()));
 
         // The highest we set the spot value, the most amount we can take from the CDP during the migrate function (as the process needs to take out collateral before paying the debt)
         // However the highest we set the spot value, the lowest can the maximum ink of the CDP be (due to uint256 overflow in frob: tab <= mul(urn.ink, ilk.spot))
@@ -78,7 +85,10 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         // 100,000 * 10 ** 45 (100K SAI locked) <= 1 * 10 ** 50 (passes, just 1 wei can't be used)
         // 1,000,000 * 10 ** 45 (1M SAI locked) <= 10 * 10 ** 50 (passes, just 10 wei can't be used)
         // 10,000,000 * 10 ** 45 (10M SAI locked) <= 100 * 10 ** 50 (passes, just 100 wei can't be used)
-        this.file(address(vat), bytes32("SAI"), bytes32("spot"), 10 ** 50);
+        this.file(address(spotter), "SAI", "mat", uint(10000));
+        spotter.poke("SAI");
+        (,, uint spot,,) = vat.ilks("SAI");
+        assertEq(spot, 10 ** 50);
 
         // Total debt ceiling (100M)
         this.file(address(vat), bytes32("Line"), 100000000 * 10 ** 45);
