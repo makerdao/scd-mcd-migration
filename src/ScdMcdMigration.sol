@@ -10,6 +10,8 @@ contract ScdMcdMigration {
     JoinLike                    public wethJoin;
     JoinLike                    public daiJoin;
 
+    event Migrate(address indexed own, bytes32 indexed cup, uint indexed cdp, uint skr, uint eth, uint sai);
+
     constructor(
         address tub_,           // SCD tub contract address
         address cdpManager_,    // MCD manager contract address
@@ -139,5 +141,7 @@ contract ScdMcdMigration {
 
         // Set ownership of CDP to the user
         cdpManager.give(cdp, msg.sender);
+
+        emit Migrate(msg.sender, cup, cdp, pethAmt, ethAmt, debtAmt);
     }
 }
