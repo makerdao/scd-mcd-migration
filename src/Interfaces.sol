@@ -40,10 +40,15 @@ contract JoinLike {
     function join(address, uint) public;
     function exit(address, uint) public;
 }
+
 contract VatLike {
     function ilks(bytes32) public view returns (uint, uint, uint, uint, uint);
     function hope(address) public;
     function frob(bytes32, address, address, address, int, int) public;
+}
+
+contract JugLike {
+    function drip(bytes32) public;
 }
 
 contract ManagerLike {

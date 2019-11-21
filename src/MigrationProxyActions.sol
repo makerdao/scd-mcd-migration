@@ -2,7 +2,7 @@ pragma solidity 0.5.12;
 
 import "ds-math/math.sol";
 
-import { GemLike, JoinLike, OtcLike, SaiTubLike } from "./Interfaces.sol";
+import { GemLike, JoinLike, JugLike, OtcLike, SaiTubLike } from "./Interfaces.sol";
 import { ScdMcdMigration } from "./ScdMcdMigration.sol";
 
 // This contract is intended to be executed via the Profile proxy of a user (DSProxy) which owns the SCD CDP
@@ -37,6 +37,7 @@ contract MigrationProxyActions is DSMath {
 
     function migrate(
         address scdMcdMigration,            // Migration contract address
+        address jug,                        // Jug address to update fee status
         bytes32 cup                         // SCD CDP Id to migrate
     ) external returns (uint cdp) {
         SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
@@ -51,12 +52,15 @@ contract MigrationProxyActions is DSMath {
         }
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
+        // Update stability fee rate
+        JugLike(jug).drip(JoinLike(ScdMcdMigration(scdMcdMigration).wethJoin()).ilk());
         // Execute migrate function
         cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
     }
 
     function migratePayFeeWithGem(
         address scdMcdMigration,            // Migration contract address
+        address jug,                        // Jug address to update fee status
         bytes32 cup,                        // SCD CDP Id to migrate
         address otc,                        // Otc address
         address payGem,                     // Token address to be used for purchasing govFee MKR
@@ -86,6 +90,8 @@ contract MigrationProxyActions is DSMath {
         }
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
+        // Update stability fee rate
+        JugLike(jug).drip(JoinLike(ScdMcdMigration(scdMcdMigration).wethJoin()).ilk());
         // Execute migrate function
         cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
     }
@@ -102,6 +108,7 @@ contract MigrationProxyActions is DSMath {
 
     function migratePayFeeWithDebt(
         address scdMcdMigration,            // Migration contract address
+        address jug,                        // Jug address to update fee status
         bytes32 cup,                        // SCD CDP Id to migrate
         address otc,                        // Otc address
         uint maxPayAmt,                     // Max amount of SAI to generate to sell for govFee MKR needed
@@ -135,6 +142,8 @@ contract MigrationProxyActions is DSMath {
         }
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
+        // Update stability fee rate
+        JugLike(jug).drip(JoinLike(ScdMcdMigration(scdMcdMigration).wethJoin()).ilk());
         // Execute migrate function
         cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
     }

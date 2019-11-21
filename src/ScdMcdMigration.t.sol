@@ -189,20 +189,20 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         mom.setTapGap(1 ether);
     }
 
-    function migrate(address, bytes32) external returns (uint cdp) {
+    function migrate(address, address, bytes32) external returns (uint cdp) {
         bytes memory response = proxy.execute(migrationProxyActions, msg.data);
         assembly {
             cdp := mload(add(response, 0x20))
         }
     }
 
-    function migratePayFeeWithGem(address, bytes32, address, address, uint) external returns (uint cdp) {
+    function migratePayFeeWithGem(address, address, bytes32, address, address, uint) external returns (uint cdp) {
         bytes memory response = proxy.execute(migrationProxyActions, msg.data);
         assembly {
             cdp := mload(add(response, 0x20))
         }
     }
-    function migratePayFeeWithDebt(address, bytes32, address, uint, uint) external returns (uint cdp) {
+    function migratePayFeeWithDebt(address, address, bytes32, address, uint, uint) external returns (uint cdp) {
         bytes memory response = proxy.execute(migrationProxyActions, msg.data);
         assembly {
             cdp := mload(add(response, 0x20))
@@ -288,6 +288,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         gov.approve(address(proxy), wdiv(tub.rap(cup), uint(val)));
         uint cdp = this.migrate(
             address(migration),
+            address(jug),
             cup
         );
         (, ink, art,) = tub.cups(cup);
@@ -310,6 +311,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         tub.draw(cup2, 30000030000009999900); // Necessary DAI to purchase MKR
         uint cdp = this.migratePayFeeWithGem(
             address(migration),
+            address(jug),
             cup,
             address(otc),
             address(sai),
@@ -335,6 +337,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         tub.draw(cup2, 30000030000009999900); // Necessary DAI to purchase MKR
         this.migratePayFeeWithGem(
             address(migration),
+            address(jug),
             cup,
             address(otc),
             address(sai),
@@ -354,6 +357,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         // Restriction: needs to be higher than 299% after generating new debt
         uint cdp = this.migratePayFeeWithDebt(
             address(migration),
+            address(jug),
             cup,
             address(otc),
             otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val)) + 1),
@@ -378,6 +382,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         hevm.warp(3);
         this.migratePayFeeWithDebt(
             address(migration),
+            address(jug),
             cup,
             address(otc),
             otc.getPayAmount(address(sai), address(gov),  wdiv(tub.rap(cup), uint(val))),
@@ -393,6 +398,7 @@ contract ScdMcdMigrationTest is DssDeployTestBase, DSMath {
         // Restriction: needs to be higher than 300% after generating new debt (which fails)
         this.migratePayFeeWithDebt(
             address(migration),
+            address(jug),
             cup,
             address(otc),
             999999999999 ether, // Big value to not interfere
