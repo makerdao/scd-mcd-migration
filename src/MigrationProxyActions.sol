@@ -2,8 +2,7 @@ pragma solidity 0.5.12;
 
 import "ds-math/math.sol";
 
-import { GemLike, JoinLike, JugLike, OtcLike, SaiTubLike } from "./Interfaces.sol";
-import { ScdMcdMigration } from "./ScdMcdMigration.sol";
+import { GemLike, JoinLike, JugLike, OtcLike, SaiTubLike, ScdMcdMigrationLike } from "./Interfaces.sol";
 
 // This contract is intended to be executed via the Profile proxy of a user (DSProxy) which owns the SCD CDP
 contract MigrationProxyActions is DSMath {
@@ -11,13 +10,13 @@ contract MigrationProxyActions is DSMath {
         address scdMcdMigration,            // Migration contract address
         uint wad                            // Amount to swap
     ) external {
-        GemLike sai = SaiTubLike(ScdMcdMigration(scdMcdMigration).tub()).sai();
-        GemLike dai = JoinLike(ScdMcdMigration(scdMcdMigration).daiJoin()).dai();
+        GemLike sai = ScdMcdMigrationLike(scdMcdMigration).tub().sai();
+        GemLike dai = ScdMcdMigrationLike(scdMcdMigration).daiJoin().dai();
         sai.transferFrom(msg.sender, address(this), wad);
         if (sai.allowance(address(this), scdMcdMigration) < wad) {
             sai.approve(scdMcdMigration, wad);
         }
-        ScdMcdMigration(scdMcdMigration).swapSaiToDai(wad);
+        ScdMcdMigrationLike(scdMcdMigration).swapSaiToDai(wad);
         dai.transfer(msg.sender, wad);
     }
 
@@ -25,13 +24,13 @@ contract MigrationProxyActions is DSMath {
         address scdMcdMigration,            // Migration contract address
         uint wad                            // Amount to swap
     ) external {
-        GemLike sai = SaiTubLike(ScdMcdMigration(scdMcdMigration).tub()).sai();
-        GemLike dai = JoinLike(ScdMcdMigration(scdMcdMigration).daiJoin()).dai();
+        GemLike sai = ScdMcdMigrationLike(scdMcdMigration).tub().sai();
+        GemLike dai = ScdMcdMigrationLike(scdMcdMigration).daiJoin().dai();
         dai.transferFrom(msg.sender, address(this), wad);
         if (dai.allowance(address(this), scdMcdMigration) < wad) {
             dai.approve(scdMcdMigration, wad);
         }
-        ScdMcdMigration(scdMcdMigration).swapDaiToSai(wad);
+        ScdMcdMigrationLike(scdMcdMigration).swapDaiToSai(wad);
         sai.transfer(msg.sender, wad);
     }
 
@@ -40,7 +39,7 @@ contract MigrationProxyActions is DSMath {
         address jug,                        // Jug address to update fee status
         bytes32 cup                         // SCD CDP Id to migrate
     ) external returns (uint cdp) {
-        SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
+        SaiTubLike tub = ScdMcdMigrationLike(scdMcdMigration).tub();
         // Get necessary MKR fee and move it to the migration contract
         (uint val, bool ok) = tub.pep().peek();
         if (ok && val != 0) {
@@ -53,9 +52,9 @@ contract MigrationProxyActions is DSMath {
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
         // Update stability fee rate
-        JugLike(jug).drip(JoinLike(ScdMcdMigration(scdMcdMigration).wethJoin()).ilk());
+        JugLike(jug).drip(ScdMcdMigrationLike(scdMcdMigration).wethJoin().ilk());
         // Execute migrate function
-        cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
+        cdp = ScdMcdMigrationLike(scdMcdMigration).migrate(cup);
     }
 
     function migratePayFeeWithGem(
@@ -66,7 +65,7 @@ contract MigrationProxyActions is DSMath {
         address payGem,                     // Token address to be used for purchasing govFee MKR
         uint maxPayAmt                      // Max amount of payGem to sell for govFee MKR needed
     ) external returns (uint cdp) {
-        SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
+        SaiTubLike tub = ScdMcdMigrationLike(scdMcdMigration).tub();
         // Get necessary MKR fee and move it to the migration contract
         (uint val, bool ok) = tub.pep().peek();
         if (ok && val != 0) {
@@ -91,9 +90,9 @@ contract MigrationProxyActions is DSMath {
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
         // Update stability fee rate
-        JugLike(jug).drip(JoinLike(ScdMcdMigration(scdMcdMigration).wethJoin()).ilk());
+        JugLike(jug).drip(ScdMcdMigrationLike(scdMcdMigration).wethJoin().ilk());
         // Execute migrate function
-        cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
+        cdp = ScdMcdMigrationLike(scdMcdMigration).migrate(cup);
     }
 
     function _getRatio(
@@ -114,7 +113,7 @@ contract MigrationProxyActions is DSMath {
         uint maxPayAmt,                     // Max amount of SAI to generate to sell for govFee MKR needed
         uint minRatio                       // Min collateralization ratio after generating new debt (e.g. 180% = 1.8 RAY)
     ) external returns (uint cdp) {
-        SaiTubLike tub = ScdMcdMigration(scdMcdMigration).tub();
+        SaiTubLike tub = ScdMcdMigrationLike(scdMcdMigration).tub();
         // Get necessary MKR fee and move it to the migration contract
         (uint val, bool ok) = tub.pep().peek();
         if (ok && val != 0) {
@@ -143,8 +142,8 @@ contract MigrationProxyActions is DSMath {
         // Transfer ownership of SCD CDP to the migration contract
         tub.give(cup, address(scdMcdMigration));
         // Update stability fee rate
-        JugLike(jug).drip(JoinLike(ScdMcdMigration(scdMcdMigration).wethJoin()).ilk());
+        JugLike(jug).drip(ScdMcdMigrationLike(scdMcdMigration).wethJoin().ilk());
         // Execute migrate function
-        cdp = ScdMcdMigration(scdMcdMigration).migrate(cup);
+        cdp = ScdMcdMigrationLike(scdMcdMigration).migrate(cup);
     }
 }

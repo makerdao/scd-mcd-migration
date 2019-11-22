@@ -1,5 +1,14 @@
 pragma solidity 0.5.12;
 
+contract ScdMcdMigrationLike {
+    function daiJoin() public view returns (JoinLike);
+    function wethJoin() public view returns (JoinLike);
+    function tub() public view returns (SaiTubLike);
+    function migrate(bytes32) public returns (uint);
+    function swapSaiToDai(uint) public;
+    function swapDaiToSai(uint) public;
+}
+
 contract GemLike {
     function allowance(address, address) public returns (uint);
     function approve(address, uint) public;
