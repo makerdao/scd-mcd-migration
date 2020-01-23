@@ -1,4 +1,4 @@
-pragma solidity 0.5.12;
+pragma solidity ^0.5.12;
 
 import "ds-token/token.sol";
 import "ds-math/math.sol";
