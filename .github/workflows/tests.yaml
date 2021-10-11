@@ -1,0 +1,27 @@
+on: [push, pull_request]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository and submodules
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Install nix 2.3.6
+      uses: cachix/install-nix-action@v13
+      with:
+        install_url: https://releases.nixos.org/nix/nix-2.3.6/install
+        nix_path: nixpkgs=channel:nixos-unstable
+
+    - name: Use maker cachix
+      uses: cachix/cachix-action@v10
+      with:
+        name: maker
+
+    - name: Run tests
+      run: |
+        git clone --recursive https://github.com/dapphub/dapptools $HOME/.dapp/dapptools
+        nix-env -f https://github.com/makerdao/makerpkgs/tarball/master -iA dappPkgsVersions.seth-0_8_4.dapp
+        dapp --use solc:0.5.12 test
